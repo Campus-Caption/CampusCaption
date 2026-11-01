@@ -1,0 +1,19 @@
+﻿html, body {
+  margin: 0;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+}
+.overlay {
+  position: fixed;
+  left: 5%;
+  right: 5%;
+  bottom: 8%;
+  padding: 0.75rem 1.25rem;
+  background: rgba(0, 0, 0, 0.72);
+  color: #fff;
+  font: 600 2rem/1.35 system-ui, sans-serif;
+  text-align: center;
+  border-radius: 14px;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.4);
+}
