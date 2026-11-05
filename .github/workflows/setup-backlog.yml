@@ -1,0 +1,25 @@
+name: Set up backlog
+
+# Creates the labels, the Sprint 1 milestone, the 6 epics and their issues
+# from .github/backlog/backlog.json. Run it once from the Actions tab.
+# Running it again only adds what's missing.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  backlog:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Create labels, milestone and issues
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python .github/backlog/create_backlog.py

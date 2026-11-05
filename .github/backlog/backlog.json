@@ -1,0 +1,425 @@
+{
+  "labels": [
+    {
+      "name": "epic",
+      "color": "5319e7",
+      "description": "A big goal that groups smaller issues"
+    },
+    {
+      "name": "research",
+      "color": "fbca04",
+      "description": "Spike: find out something and write down a decision"
+    },
+    {
+      "name": "task",
+      "color": "0e8a16",
+      "description": "Concrete piece of work"
+    },
+    {
+      "name": "priority: high",
+      "color": "b60205",
+      "description": "Candidate for the next sprint"
+    },
+    {
+      "name": "area: ai-pipeline",
+      "color": "c5def5",
+      "description": "Speech-to-text, VAD, models"
+    },
+    {
+      "name": "area: backend",
+      "color": "bfdadc",
+      "description": "FastAPI, WebSockets, Docker, server"
+    },
+    {
+      "name": "area: frontend",
+      "color": "d4c5f9",
+      "description": "Caption viewer and lecturer panel code"
+    },
+    {
+      "name": "area: ux",
+      "color": "f9d0c4",
+      "description": "Design, wireframes, usability"
+    },
+    {
+      "name": "area: privacy",
+      "color": "fef2c0",
+      "description": "GDPR, consent, data protection"
+    },
+    {
+      "name": "area: translation",
+      "color": "c2e0c6",
+      "description": "Translation and technical terms"
+    },
+    {
+      "name": "area: speakers",
+      "color": "e6e6e6",
+      "description": "Lecturer / audience labels"
+    }
+  ],
+  "milestones": [
+    {
+      "title": "Sprint 1",
+      "description": "Picked in Sprint 1 planning. Set the due date to the sprint's last day."
+    }
+  ],
+  "epics": [
+    {
+      "epic": {
+        "title": "Epic 1: Audio & AI pipeline (local)",
+        "body": "**Goal:** Turn lecture audio into German text live on the THA GPU server, without any data leaving campus.\n\n**Starting point:** Hajar's first test in [`research/asr-benchmark/`](https://github.com/Campus-Caption/CampusCaption/tree/main/research/asr-benchmark): `small` ~31% WER, `large-v3-turbo` ~14% on a 30 s lecture-style text. Biggest problems: English terms (PyTorch → Python) and wrong numbers (15. → 12. Dezember).\n\n**Done when**\n- [ ] The model runs fully locally, nothing is sent outside\n- [ ] Silero VAD filters silence, no invented text on silent audio\n- [ ] WER and CER are measured on our own consented lecture recordings, results in `research/`\n- [ ] End-to-end delay (speech → text on screen) is measured; team agrees on a target (suggestion: ≤ 4 s)",
+        "labels": [
+          "epic",
+          "area: ai-pipeline"
+        ]
+      },
+      "issues": [
+        {
+          "title": "Compare the German Whisper fine-tune with large-v3-turbo",
+          "body": "Run `primeline/whisper-large-v3-turbo-german` on the same test text as Hajar's first test and compare with `large-v3-turbo`.\n\n**Done when**\n- [ ] Table with WER, CER and serious errors for both models, added to `research/asr-benchmark/README.md`\n- [ ] Short decision record in `docs/decisions/` on which model we use",
+          "labels": [
+            "research",
+            "area: ai-pipeline",
+            "priority: high"
+          ]
+        },
+        {
+          "title": "Test term hints for technical words",
+          "body": "Give Whisper a list of course terms (PyTorch, Machine Learning, Backpropagation …) via `initial_prompt` or `hotwords` in faster-whisper and check whether those errors disappear.\n\n**Done when**\n- [ ] Before/after comparison on the test text\n- [ ] Note on whether hints cause new errors (e.g. the model writing a hint word that wasn't said)",
+          "labels": [
+            "research",
+            "area: ai-pipeline"
+          ]
+        },
+        {
+          "title": "Add Silero VAD and a hallucination blocklist",
+          "body": "Put Silero VAD in front of Whisper so only speech reaches the model. Add a small blocklist of phrases Whisper invents on silence in German (e.g. \"Untertitelung des ZDF für funk, 2017\").\n\n**Done when**\n- [ ] 60 s of silence or room noise produces no text\n- [ ] Blocklist lives in one file that's easy to extend",
+          "labels": [
+            "task",
+            "area: ai-pipeline",
+            "priority: high"
+          ]
+        },
+        {
+          "title": "Pick a live streaming method and measure the delay",
+          "body": "Whisper isn't built for live audio. Test a streaming wrapper (SimulStreaming, WhisperLiveKit or whisper_streaming) with German speech.\n\n**Done when**\n- [ ] Delay from spoken word to text measured (median and worst case)\n- [ ] WER in streaming mode compared to file mode\n- [ ] Decision record on which wrapper we use",
+          "labels": [
+            "research",
+            "area: ai-pipeline"
+          ]
+        },
+        {
+          "title": "Record at least 5–6 hours of consented lecture audio",
+          "body": "We need real lecture audio to test on, not only read test texts. Aim for at least 6 speakers, different accents and subjects, and both lav mic and the hall system if possible.\n\n**Blocked by:** the consent form (Epic 4).\n\n**Done when**\n- [ ] At least 5–6 h recorded with written consent\n- [ ] Reference transcripts for at least a part of it\n- [ ] Files stored in the agreed private folder, **never in Git** (decision 0002)",
+          "labels": [
+            "task",
+            "area: ai-pipeline"
+          ]
+        },
+        {
+          "title": "Get access to a THA GPU server",
+          "body": "Ask Zentrale IT for a machine with a GPU (at least 10 GB VRAM) that we can run the model on.\n\n**Done when**\n- [ ] We know which machine, how we log in, and what we're allowed to install\n- [ ] One team member has run `large-v3-turbo` on it",
+          "labels": [
+            "task",
+            "area: ai-pipeline",
+            "priority: high"
+          ]
+        },
+        {
+          "title": "Rate caption errors by how serious they are",
+          "body": "WER counts every error the same. Rate errors as minor (0.25), standard (0.5) or serious (1.0), like Hajar's step 2 part B, so we can see which errors actually mislead students.\n\n**Done when**\n- [ ] A simple rating sheet or script\n- [ ] Rating done for the chosen model on the test set",
+          "labels": [
+            "research",
+            "area: ai-pipeline"
+          ]
+        }
+      ]
+    },
+    {
+      "epic": {
+        "title": "Epic 2: Backend & local infrastructure",
+        "body": "**Goal:** One FastAPI service on the campus network that takes audio in and sends captions to many screens at once.\n\n**Done when**\n- [ ] Audio stays in a RAM buffer of max 30 s and never touches the disk ([decision 0002](https://github.com/Campus-Caption/CampusCaption/blob/main/docs/decisions/0002-no-audio-on-disk.md)), checked by a test\n- [ ] WebSockets send the captions to many connected screens at the same time\n- [ ] Runs with `docker compose up` on the campus network without any cloud service",
+        "labels": [
+          "epic",
+          "area: backend"
+        ]
+      },
+      "issues": [
+        {
+          "title": "WebSocket rooms: one lecturer, many viewers",
+          "body": "A lecturer starts a room, viewers join with a room code, and every caption is sent to everyone in that room.\n\n**Done when**\n- [ ] Two rooms can run at the same time without mixing captions\n- [ ] A viewer that reconnects gets the latest captions again",
+          "labels": [
+            "task",
+            "area: backend",
+            "priority: high"
+          ]
+        },
+        {
+          "title": "Agree the caption message format with the frontend",
+          "body": "Write down what a caption message looks like (text, interim/final, timestamp, speaker label later) and the WebSocket endpoints. FastAPI's automatic `/docs` page covers the HTTP part for free.\n\n**Done when**\n- [ ] One short file in `docs/` that frontend and backend both agreed on",
+          "labels": [
+            "task",
+            "area: backend",
+            "area: frontend",
+            "priority: high"
+          ]
+        },
+        {
+          "title": "Take audio from a mic or the hall system into the server",
+          "body": "Read audio from a USB mic or the lecture hall audio output (e.g. with `sounddevice`), convert to 16 kHz mono and keep it in a RAM ring buffer of max 30 s.\n\n**Done when**\n- [ ] Works with at least one real mic\n- [ ] Buffer never grows beyond 30 s",
+          "labels": [
+            "task",
+            "area: backend"
+          ]
+        },
+        {
+          "title": "Automatic check that no audio is written to disk",
+          "body": "A test that runs the pipeline and then checks that no audio ended up in logs, temp folders or Docker volumes.\n\n**Done when**\n- [ ] Test is in the repo and runs before every merge (or at least before every demo)",
+          "labels": [
+            "task",
+            "area: backend",
+            "area: privacy"
+          ]
+        },
+        {
+          "title": "Decide whether we need a database in v1",
+          "body": "If students join without accounts and we don't store transcripts, v1 may not need a database at all. Decide before building one.\n\n**Done when**\n- [ ] Decision record: no database yet, or Postgres with what tables and why",
+          "labels": [
+            "research",
+            "area: backend"
+          ]
+        },
+        {
+          "title": "Protect the lecturer control page",
+          "body": "Only the lecturer may start, pause and end captions. A simple shared secret is enough for the prototype ([decision 0003](https://github.com/Campus-Caption/CampusCaption/blob/main/docs/decisions/0003-no-student-login-in-v1.md)).\n\n**Done when**\n- [ ] Control endpoints reject requests without the secret",
+          "labels": [
+            "task",
+            "area: backend"
+          ]
+        },
+        {
+          "title": "Check if we need local HTTPS (campuscaption.local)",
+          "body": "Browsers only allow the microphone on HTTPS pages. If audio comes from a mic plugged into the server, viewers don't need HTTPS for that. Check our setup first, then set up Caddy/Nginx only if needed.\n\n**Done when**\n- [ ] Decision written down; HTTPS set up if we need it",
+          "labels": [
+            "research",
+            "area: backend"
+          ]
+        },
+        {
+          "title": "Load test: how many viewers can one server handle",
+          "body": "Simulate many viewers in one or more rooms.\n\n**Done when**\n- [ ] Number of viewers and rooms one server handles, and on what hardware",
+          "labels": [
+            "task",
+            "area: backend"
+          ]
+        }
+      ]
+    },
+    {
+      "epic": {
+        "title": "Epic 3: UX & frontend",
+        "body": "**Goal:** A caption viewer for students and a control panel for lecturers. Laptop first, then phone and projector.\n\n**Starting point:** Simge's UX research (hybrid viewer: 2–3 live lines plus an optional history panel, UX-01 to UX-06) and the student survey (laptop/tablet 77%, phone and projector 38% each, 38% worried about distraction).\n\n**Done when**\n- [ ] Works on laptop, phone and projector\n- [ ] Meets WCAG 2.2 AA contrast and works with the keyboard\n- [ ] Feedback collected from hard-of-hearing students / the disabled students' representative",
+        "labels": [
+          "epic",
+          "area: ux",
+          "area: frontend",
+          "accessibility"
+        ]
+      },
+      "issues": [
+        {
+          "title": "Pick the frontend stack",
+          "body": "Vue, React or plain HTML/CSS/JS. Pick what the frontend people are fastest with; the viewer is a small app.\n\n**Done when**\n- [ ] Short decision record in `docs/decisions/`",
+          "labels": [
+            "research",
+            "area: frontend",
+            "priority: high"
+          ]
+        },
+        {
+          "title": "Rough wireframes: viewer, lecturer panel, join screen",
+          "body": "Paper, Penpot or Figma, whatever is fastest. The point is to agree on what the screens contain, not pixel-perfect design.\n\n**Done when**\n- [ ] Wireframes for the three screens, phone and laptop size, linked or added under `docs/`\n- [ ] Team looked at them in a sprint review",
+          "labels": [
+            "task",
+            "area: ux",
+            "priority: high"
+          ]
+        },
+        {
+          "title": "Build the caption viewer",
+          "body": "Hybrid viewer from the UX research: 2–3 live lines, collapsible history, \"Jump to Live\" when scrolled up, interim text grey and italic, final text solid (UX-01, UX-04, UX-05).\n\n**Done when**\n- [ ] Shows live captions from the backend\n- [ ] Scrolling up pauses auto-scroll; Jump to Live brings it back",
+          "labels": [
+            "task",
+            "area: frontend"
+          ]
+        },
+        {
+          "title": "Text size presets and light/dark theme",
+          "body": "Small 20 px, Medium 24 px, Large 28 px, XL 32 px, and a light and dark theme (UX-02, UX-03).\n\n**Done when**\n- [ ] Settings change instantly and the layout doesn't break\n- [ ] All colour pairs checked for WCAG AA contrast",
+          "labels": [
+            "task",
+            "area: frontend",
+            "accessibility"
+          ]
+        },
+        {
+          "title": "Join a room by room code or QR code",
+          "body": "Students open a link or scan a QR code on the projector. No login ([decision 0003](https://github.com/Campus-Caption/CampusCaption/blob/main/docs/decisions/0003-no-student-login-in-v1.md)).\n\n**Done when**\n- [ ] QR code shown on the lecturer panel / projector view\n- [ ] Joining takes one tap on a phone",
+          "labels": [
+            "task",
+            "area: frontend"
+          ]
+        },
+        {
+          "title": "Lecturer panel: start, pause, end",
+          "body": "Simple control page for the lecturer, with a clear \"Live\" state.\n\n**Done when**\n- [ ] Start, pause and end work and viewers see the state change",
+          "labels": [
+            "task",
+            "area: frontend"
+          ]
+        },
+        {
+          "title": "Status badge and privacy notice in the viewer",
+          "body": "Show Live / Reconnecting / Offline, and a short privacy notice that only says what the backend really does (UX-06).\n\n**Done when**\n- [ ] Status changes are announced to screen readers\n- [ ] Privacy text agreed with Epic 4",
+          "labels": [
+            "task",
+            "area: frontend",
+            "area: privacy",
+            "accessibility"
+          ]
+        },
+        {
+          "title": "Usability test with hard-of-hearing students",
+          "body": "Test the prototype with hard-of-hearing students and the disabled students' representative.\n\n**Done when**\n- [ ] At least 3 sessions done, findings written down as new issues",
+          "labels": [
+            "task",
+            "area: ux",
+            "accessibility"
+          ]
+        }
+      ]
+    },
+    {
+      "epic": {
+        "title": "Epic 4: Privacy, ethics & GDPR",
+        "body": "**Goal:** Make sure the system follows GDPR, §201 StGB and BayDSG, and get the approvals we need before testing in lectures.\n\n**Done when**\n- [ ] Written testing approval from the data protection officer\n- [ ] Consent forms ready for students and lecturers\n- [ ] \"Live-Untertitelung aktiv (KI)\" signs designed and ready for lecture halls",
+        "labels": [
+          "epic",
+          "area: privacy"
+        ]
+      },
+      "issues": [
+        {
+          "title": "Discuss the RAM-buffer architecture with the data protection officer",
+          "body": "Schedule a meeting with the data protection officer (Datenschutzbeauftragter) to discuss the RAM-buffer architecture and clarify privacy requirements. (Was SCRUM-11 in Jira.)\n\n**Done when**\n- [ ] Meeting held, answers written down",
+          "labels": [
+            "task",
+            "area: privacy",
+            "priority: high"
+          ]
+        },
+        {
+          "title": "Consent form for test recordings",
+          "body": "Form for students and lecturers before we record any audio for testing. Needed before the 5–6 h recordings can start.\n\n**Done when**\n- [ ] Form ready (Nextcloud or another local tool, not a US cloud form)",
+          "labels": [
+            "task",
+            "area: privacy",
+            "priority: high"
+          ]
+        },
+        {
+          "title": "Design the \"Live-Untertitelung aktiv (KI)\" sign",
+          "body": "A sign for lecture halls and a banner in the viewer, so everyone knows live captioning is on.\n\n**Done when**\n- [ ] Printable sign in German and English",
+          "labels": [
+            "task",
+            "area: privacy",
+            "area: ux"
+          ]
+        },
+        {
+          "title": "Write the privacy notice text",
+          "body": "Short text for the viewer: what we process, what we don't keep, who to contact. Only claims the backend can actually back up.\n\n**Done when**\n- [ ] Text agreed by backend and the privacy owner, used in the viewer",
+          "labels": [
+            "task",
+            "area: privacy"
+          ]
+        },
+        {
+          "title": "Clarify whether the RAM buffer counts as recording (§201 StGB)",
+          "body": "Lawyers disagree on whether live transcription with a short audio buffer counts as recording the spoken word. Ask the data protection officer.\n\n**Done when**\n- [ ] Answer written down in a decision record",
+          "labels": [
+            "research",
+            "area: privacy"
+          ]
+        }
+      ]
+    },
+    {
+      "epic": {
+        "title": "Epic 5: Translation & technical terms",
+        "body": "**Goal:** Better accuracy on technical terms, and translation for students who don't follow German well.\n\n**Note from the survey (N=13):** 85% need English captions, only 46% German, and 62% find German as a second language a barrier. Translation may need to move up from \"later\" — to discuss in sprint planning.\n\n**Done when**\n- [ ] Technical terms are pulled from lecture slides offline and passed to Whisper as hints\n- [ ] We know which local translation model to use, with quality and delay measured",
+        "labels": [
+          "epic",
+          "area: translation"
+        ]
+      },
+      "issues": [
+        {
+          "title": "Extract technical terms from lecture slides",
+          "body": "Offline Python script (e.g. `pdfplumber` + `spaCy`) that pulls technical terms from a PDF and turns them into a hint list for Whisper.\n\n**Done when**\n- [ ] Works on a real lecture PDF without internet\n- [ ] Output can be fed into the term hints test (Epic 1)",
+          "labels": [
+            "task",
+            "area: translation"
+          ]
+        },
+        {
+          "title": "Test local German → English translation",
+          "body": "Compare local models (e.g. NLLB, MarianMT, or newer options) for translating live captions.\n\n**Done when**\n- [ ] Translation quality checked on our test text\n- [ ] Extra delay per sentence measured\n- [ ] Decision record on which model",
+          "labels": [
+            "research",
+            "area: translation"
+          ]
+        },
+        {
+          "title": "Check lectures that switch between German and English",
+          "body": "Many IIS lectures are in English or mix both. Check how Whisper handles that (language detection vs fixed language).\n\n**Done when**\n- [ ] Test on a mixed German/English recording, result written down",
+          "labels": [
+            "research",
+            "area: translation",
+            "area: ai-pipeline"
+          ]
+        }
+      ]
+    },
+    {
+      "epic": {
+        "title": "Epic 6: Speaker labels (Lecturer / Audience)",
+        "body": "**Goal:** Show who is speaking (Lecturer vs Audience) **without** any biometric voice data, only by which microphone channel the audio comes from.\n\n**Done when**\n- [ ] The viewer shows two speakers with distinct colours **and** text labels\n- [ ] Separation is based only on the hardware channel, no voice analysis",
+        "labels": [
+          "epic",
+          "area: speakers"
+        ]
+      },
+      "issues": [
+        {
+          "title": "Route two mic channels and tag captions with the channel",
+          "body": "Channel 1: lecturer lav mic, channel 2: audience mic (e.g. Catchbox). Tag every caption with its channel ID and send it via WebSocket.\n\n**Done when**\n- [ ] Captions from each mic arrive with the right label\n- [ ] One mic picking up the other doesn't create duplicate captions (tested)",
+          "labels": [
+            "task",
+            "area: speakers",
+            "area: backend"
+          ]
+        },
+        {
+          "title": "Show Lecturer / Audience in the viewer",
+          "body": "Colour plus a text label like [Prof.] / [Frage], because colour alone isn't accessible.\n\n**Done when**\n- [ ] Labels readable on all themes and screen sizes",
+          "labels": [
+            "task",
+            "area: speakers",
+            "area: frontend",
+            "accessibility"
+          ]
+        }
+      ]
+    }
+  ]
+}
