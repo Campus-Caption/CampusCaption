@@ -1,4 +1,4 @@
-**Jira ticket:** SCRUM-
+Closes #
 
 **What changed**
 -

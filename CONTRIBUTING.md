@@ -6,23 +6,35 @@ Short rules so everyone works the same way. If something here doesn't work for u
 
 | What | Where |
 |---|---|
-| Backlog, sprints, who does what | Jira (project `SCRUM`) |
+| Backlog: epics and tasks | [Issues](https://github.com/Campus-Caption/CampusCaption/issues). Epics have the `epic` label, their tasks are sub-issues |
+| Sprints | Milestones (`Sprint 1`, `Sprint 2` …) |
+| Who does what, status | The organization's project board |
 | Code, Docker, scripts | This repo |
 | Decisions we made and why | [`docs/decisions/`](docs/decisions/) |
-| Research notes and docs | Shared folder, linked from the Jira epic |
+| Research results | [`research/`](research/), linked from the issue |
 
-We track work in Jira only. GitHub is for code, so we don't keep a second board here.
+Everything lives on GitHub, nothing in Jira ([decision 0001](docs/decisions/0001-github-for-backlog-and-code.md)).
+
+## Labels
+
+| Label | Meaning |
+|---|---|
+| `epic` | A big goal that groups smaller issues |
+| `research` | A spike: find something out and write down a decision |
+| `task` | A concrete piece of work |
+| `priority: high` | Candidate for the next sprint |
+| `area: …` | Which part of the system (ai-pipeline, backend, frontend, ux, privacy, translation, speakers) |
 
 ## Workflow
 
-1. Pick a ticket in Jira and move it to **In Progress**.
-2. Create a branch from `main` that starts with the Jira key:
-   `SCRUM-12-websocket-broadcast`
-3. Commit with the key in the message, so Jira shows the commit on the ticket:
-   `SCRUM-12 add websocket endpoint`
-4. Push and open a pull request into `main`. Fill in the short template.
-5. One other person reviews and approves, then merges.
-6. Move the ticket to **Done** when it meets the Definition of Done.
+1. Pick an issue from the current sprint, assign yourself and move it to **In progress** on the board.
+2. Create a branch from `main` that starts with the issue number:
+   `12-websocket-broadcast`
+3. Commit with the issue number in the message, so it shows up on the issue:
+   `#12 add websocket endpoint`
+4. Push and open a pull request into `main`. Write `Closes #12` in the template.
+5. One other person reviews and approves, then merges. The issue closes and moves to **Done**.
+6. Research issues are done when the result is written down (in `research/` or a decision record), not when code is merged.
 
 Nobody pushes straight to `main`.
 
@@ -30,10 +42,10 @@ Nobody pushes straight to `main`.
 
 A ticket is done when:
 
-- it does what the acceptance criteria in Jira say
+- it does what the "Done when" list in the issue says
 - it's merged into `main` and `docker compose up --build` still starts
 - someone else reviewed it
-- anything the next person needs to know is written down (README, a decision record, or a comment on the ticket)
+- anything the next person needs to know is written down (README, a decision record, or a comment on the issue)
 
 ## Never commit
 

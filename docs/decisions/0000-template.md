@@ -2,7 +2,7 @@
 
 - **Status:** Proposed / Accepted / Replaced by NNNN
 - **Date:** YYYY-MM-DD
-- **Jira:** SCRUM-
+- **Issue:** #
 
 ## Context
 

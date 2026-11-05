@@ -1,4 +1,4 @@
-﻿# CampusCaption
+# CampusCaption
 
 Live captions for campus lectures or events. 
 
@@ -11,7 +11,7 @@ Live captions for campus lectures or events.
 
 ## How we work
 
-Backlog and sprints are in Jira, code is here. Read [CONTRIBUTING.md](CONTRIBUTING.md) before your first pull request, and see [docs/decisions/](docs/decisions/) for what we decided and why.
+Backlog, sprints and code are all here on GitHub: see the [Issues](https://github.com/Campus-Caption/CampusCaption/issues) and the organization's project board. Read [CONTRIBUTING.md](CONTRIBUTING.md) before your first pull request, and see [docs/decisions/](docs/decisions/) for what we decided and why.
 
 ## Docker
 
