@@ -10,3 +10,18 @@ venv/
 *.egg-info/
 dist/
 build/
+
+# Audio and recordings: personal data, never commit (see docs/decisions/0002)
+*.wav
+*.mp3
+*.m4a
+*.flac
+*.ogg
+*.webm
+recordings/
+
+# Downloaded models
+models/
+*.bin
+*.pt
+*.onnx
