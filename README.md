@@ -1,4 +1,4 @@
-# CampusCaption
+﻿# CampusCaption
 
 Live captions for campus lectures or events. Speak into a microphone, captions appear on a beamer / OBS / any screen.
 
@@ -24,57 +24,11 @@ Manual start: `pip install -r requirements-local.txt` then `python main.py`. Doc
 - `scripts/stt_smoke.py` - run a WAV through a real engine and report speed
 - `tests/` - `pip install -r requirements-dev.txt && pytest`
 
-## Engines
+## How we work
 
-| Engine | Where audio goes | Needs |
-|---|---|---|
-| **Lokal** (default) | stays on the server | `pip install -r requirements-local.txt`; Parakeet v3 downloads ~465 MB on first use |
-| **Cloud – OpenAI Whisper** | OpenAI | `OPENAI_API_KEY` |
-| Cloud – Mistral Voxtral Realtime (optional) | Mistral (EU) | `MISTRAL_API_KEY`; hidden until set |
-| Claude cleanup (optional toggle) | finished sentences as text go to Anthropic | `ANTHROPIC_API_KEY`; hidden until set |
+Backlog, sprints and code are all here on GitHub: see the [Issues](https://github.com/Campus-Caption/CampusCaption/issues) and the organization's project board. Read [CONTRIBUTING.md](CONTRIBUTING.md) before your first pull request, and see [docs/decisions/](docs/decisions/) for what we decided and why.
 
-Claude cannot transcribe audio (the Anthropic API takes no audio); it would only fix punctuation and spellings of
-sentences a speech model already produced. Keys go into `.env` only and are never sent to browsers. Local models:
-`parakeet` (fast, 25 languages, good on CPU), `whisper-turbo` (99 languages, wants an NVIDIA GPU), `whisper-small`.
-
-## NVIDIA GPU
-
-Whisper uses the GPU automatically (`STT_DEVICE=auto`) once the CUDA libraries from `requirements-local.txt` are installed
-(`run.bat` installs them). Check with `.venv\Scripts\python scripts\check_gpu.py`. For a GPU set
-`STT_LOCAL_MODEL=whisper-turbo` in `.env` (best accuracy, 99 languages). Parakeet runs on the CPU only.
-
-## How it avoids the prototype's problems
-
-- *Slow:* the prototype re-decoded the growing buffer every time without a limit, so decodes piled up. Now at most one
-  preview decode runs at a time, its pace adapts to the machine, and finished sentences go first.
-- *Text jumping over 3 lines:* the preview kept changing and was centred, so everything re-wrapped. Now only words
-  confirmed by two consecutive decodes become solid (LocalAgreement), and the display is left-aligned and scrolls.
-- Silero VAD cuts sentences at pauses and splits very long speech at the latest pause; known Whisper hallucinations
-  ("Untertitel der Amara.org-Community") and repetition loops are filtered.
-
-## Overlay options (URL)
-
-`/overlay?session=ID&size=40&lines=3&theme=dark|light|contrast|green|transparent&controls=0&hide=8&off=1`
-OBS: browser source with `theme=transparent&controls=0&hide=0`. Buttons: on/off, A-/A+, lines, theme, pop-out
-(floating window, Chrome/Edge), fullscreen. Keys: `+` `-` `f` `c`.
-
-## API
-
-| Method | Path |
-|---|---|
-| GET | `/api/captions/engines` |
-| POST | `/api/captions/engines/local/{model}/warm` |
-| POST | `/api/captions/session` |
-| GET | `/api/captions/session/{id}` · `/latest` |
-| PATCH | `/api/captions/session/{id}/settings` |
-| POST | `/api/captions/session/{id}/clear` · DELETE `/session/{id}` |
-| GET | `/api/captions/session/{id}/transcript?format=txt\|vtt\|srt\|json` |
-| WS | `/api/captions/ws/ingest/{id}` (mic: binary 16 kHz mono PCM16 + JSON `start`/`stop`/`ping`) |
-| WS | `/api/captions/ws/listen/{id}` (caption feed) |
-
-Interactive docs: http://127.0.0.1:8080/docs
-
-## Check an engine before a lecture
+## Docker
 
 ```bash
 python scripts/stt_smoke.py sample.wav --engine local --language de --realtime
@@ -82,7 +36,21 @@ python scripts/stt_smoke.py sample.wav --engine openai
 ```
 (16 kHz mono WAV: `ffmpeg -i in.mp3 -ar 16000 -ac 1 sample.wav`.)
 
+<<<<<<< HEAD
 ## Tests
+=======
+Stop with `Ctrl+C` or `docker compose down`.
+
+## Local Python
+
+```bash
+python -m venv .venv
+.venv\Scripts\activate        # Windows
+# source .venv/bin/activate     # macOS / Linux
+pip install -r requirements.txt
+python main.py
+```
+>>>>>>> 0bde385dfac5a1b8f74b3484162616986d7cf38d
 
 `pytest` never downloads a model. To also run the real-Parakeet test, set `CC_TEST_MODEL_DIR` to a folder that holds
 the model. The OpenAI/Mistral clients are tested against mock servers only: run the smoke script with your keys once.
