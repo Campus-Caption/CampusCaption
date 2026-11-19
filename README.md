@@ -1,4 +1,4 @@
-﻿# CampusCaption
+# CampusCaption
 
 Live captions for campus lectures or events. Speak into a microphone, captions appear on a beamer / OBS / any screen.
 
@@ -26,9 +26,17 @@ Manual start: `pip install -r requirements-local.txt` then `python main.py`. Doc
 
 ## How we work
 
-Backlog, sprints and code are all here on GitHub: see the [Issues](https://github.com/Campus-Caption/CampusCaption/issues) and the organization's project board. Read [CONTRIBUTING.md](CONTRIBUTING.md) before your first pull request, and see [docs/decisions/](docs/decisions/) for what we decided and why.
+Backlog, sprints and code are all here on GitHub: see the [Issues](https://github.com/Campus-Caption/CampusCaption/issues) and the organization's project board. Read [CONTRIBUTING.md](CONTRIBUTING.md) before your first pull request.
 
 ## Docker
+
+```bash
+docker compose up --build
+```
+
+Stop with `Ctrl+C` or `docker compose down`.
+
+## Smoke test
 
 ```bash
 python scripts/stt_smoke.py sample.wav --engine local --language de --realtime
@@ -36,21 +44,7 @@ python scripts/stt_smoke.py sample.wav --engine openai
 ```
 (16 kHz mono WAV: `ffmpeg -i in.mp3 -ar 16000 -ac 1 sample.wav`.)
 
-<<<<<<< HEAD
 ## Tests
-=======
-Stop with `Ctrl+C` or `docker compose down`.
-
-## Local Python
-
-```bash
-python -m venv .venv
-.venv\Scripts\activate        # Windows
-# source .venv/bin/activate     # macOS / Linux
-pip install -r requirements.txt
-python main.py
-```
->>>>>>> 0bde385dfac5a1b8f74b3484162616986d7cf38d
 
 `pytest` never downloads a model. To also run the real-Parakeet test, set `CC_TEST_MODEL_DIR` to a folder that holds
 the model. The OpenAI/Mistral clients are tested against mock servers only: run the smoke script with your keys once.

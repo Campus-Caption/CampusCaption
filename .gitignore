@@ -1,4 +1,4 @@
-﻿__pycache__/
+__pycache__/
 .venv/
 venv/
 .env
@@ -7,11 +7,12 @@ venv/
 .mypy_cache/
 .idea/
 .vscode/
+.playwright-mcp/
 *.egg-info/
 dist/
 build/
 
-# Audio and recordings: personal data, never commit (see docs/decisions/0002)
+# Audio and recordings: personal data, never commit
 *.wav
 *.mp3
 *.m4a

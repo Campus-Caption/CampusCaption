@@ -1,3 +1,0 @@
-faster-whisper>=1.0
-numpy
-jiwer>=3.0
