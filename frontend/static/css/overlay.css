@@ -1,19 +1,35 @@
-﻿html, body {
-  margin: 0;
-  height: 100%;
-  background: transparent;
-  overflow: hidden;
+:root { --fs: 40px; --lines: 3; --fg: #fff; --bg: rgba(0,0,0,.82); }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; font-family: "Atkinson Hyperlegible Next", "Atkinson Hyperlegible", system-ui, "Segoe UI", sans-serif; background: transparent; }
+body[data-theme="dark"]  { --fg: #fff; --bg: rgba(0,0,0,.85); background: #000; }
+body[data-theme="light"] { --fg: #111; --bg: rgba(255,255,255,.95); background: #fff; }
+body[data-theme="contrast"] { --fg: #ffe600; --bg: #000; background: #000; }
+body[data-theme="green"] { --fg: #fff; --bg: #00b140; background: #00b140; }       /* chroma key for OBS */
+body[data-theme="transparent"] { --fg: #fff; --bg: rgba(0,0,0,.0); }             /* OBS browser source */
+body[data-theme="transparent"] .cap-line { text-shadow: 0 0 6px #000, 0 0 3px #000; }
+
+.stage { position: fixed; inset: 0; display: flex; align-items: flex-end; justify-content: center; padding: 2vh 3vw 5vh; }
+.cap-box {
+  width: min(100%, 1400px); background: var(--bg); color: var(--fg); border-radius: 14px;
+  padding: .45em .7em; font-size: var(--fs); font-weight: 500; transition: opacity .4s;
 }
-.overlay {
-  position: fixed;
-  left: 5%;
-  right: 5%;
-  bottom: 8%;
-  padding: 0.75rem 1.25rem;
-  background: rgba(0, 0, 0, 0.72);
-  color: #fff;
-  font: 600 2rem/1.35 system-ui, sans-serif;
-  text-align: center;
-  border-radius: 14px;
-  text-shadow: 0 1px 2px rgba(0,0,0,0.4);
+.cap-scroll { max-height: calc(var(--fs) * 1.35 * var(--lines) + .35em * var(--lines)); }
+.stage.idle .cap-box { opacity: 0; }
+.stage.off .cap-box, .stage.empty .cap-box { visibility: hidden; }
+.hint { position: fixed; top: 1rem; left: 0; right: 0; text-align: center; color: #aaa; font-size: 1rem; margin: 0; }
+.hint:empty { display: none; }
+
+.bar {
+  position: fixed; top: .75rem; right: .75rem; display: flex; gap: 2px; flex-wrap: wrap;
+  padding: 3px; border-radius: 6px; background: rgba(13,20,36,.92);
+  opacity: 0; transition: opacity .25s; z-index: 5;
 }
+body:hover .bar, .bar:focus-within { opacity: 1; }
+body.nocontrols .bar { display: none; }
+.bar button {
+  font: 700 14px "Atkinson Hyperlegible Next", system-ui, sans-serif; padding: .5rem .75rem; border: 0; border-radius: 4px;
+  background: transparent; color: #e9edf5; cursor: pointer;
+}
+.bar button:hover { background: #24304c; }
+.bar button[aria-pressed="false"] { background: #d7263d; color: #fff; }
+.bar button:focus-visible { outline: 3px solid #8fb0ff; outline-offset: -3px; }

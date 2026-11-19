@@ -5,12 +5,17 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# WITH_LOCAL=1 also installs the offline speech models' runtimes (larger image).
+ARG WITH_LOCAL=1
+COPY requirements.txt requirements-local.txt ./
+RUN if [ "$WITH_LOCAL" = "1" ]; then pip install --no-cache-dir -r requirements-local.txt; \
+    else pip install --no-cache-dir -r requirements.txt; fi
 
 COPY app ./app
 COPY frontend ./frontend
 COPY main.py .
+
+RUN mkdir -p /app/data/models
 
 EXPOSE 8080
 

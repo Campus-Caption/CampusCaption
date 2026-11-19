@@ -1,0 +1,3 @@
+silero_vad_v6.onnx - Silero VAD (https://github.com/snakers4/silero-vad), MIT License,
+Copyright (c) 2020-present Silero Team. Bundled so voice activity detection works offline.
+Copied unmodified from the faster-whisper distribution (MIT, SYSTRAN).

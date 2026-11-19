@@ -1,0 +1,5 @@
+.cap-box { overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; }
+.cap-scroll { overflow-y: auto; scrollbar-width: none; scroll-behavior: smooth; text-align: left; }
+.cap-scroll::-webkit-scrollbar { display: none; }
+.cap-line { margin: 0 0 .35em; line-height: 1.35; overflow-wrap: anywhere; }
+.cap-line.live .tentative { opacity: .6; }

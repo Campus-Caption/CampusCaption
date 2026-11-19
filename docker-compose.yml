@@ -1,9 +1,19 @@
 services:
   campuscaption:
-    build: .
+    build:
+      context: .
+      args:
+        WITH_LOCAL: "1"   # set to "0" for a slim image that only uses the cloud engines
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"   # there is no login: do not expose this beyond your own machine / trusted network
+    env_file: .env
+    environment:
+      STT_MODEL_DIR: /app/data/models   # downloaded speech models live in the volume
     volumes:
       - ./app:/app/app
       - ./frontend:/app/frontend
+      - campuscaption-data:/app/data
     restart: unless-stopped
+
+volumes:
+  campuscaption-data:

@@ -10,3 +10,7 @@ venv/
 *.egg-info/
 dist/
 build/
+
+# local database
+data/
+*.db
