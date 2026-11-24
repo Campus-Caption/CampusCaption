@@ -1,6 +1,6 @@
 # Local (offline) speech recognition: the only engine, so install this to caption anything.
 -r requirements.txt
-sherpa-onnx>=1.10.30      # Parakeet TDT v3 (default, fast on CPU)
+sherpa-onnx>=1.13.4       # Parakeet TDT v3 (default) and Nemotron 3.5 ASR Streaming, fast on CPU
 faster-whisper>=1.1.0     # Whisper large-v3-turbo / small
 # NVIDIA GPU support for Whisper (CUDA 12). Harmless without a GPU, it only adds ~1 GB of libraries.
 nvidia-cublas-cu12; platform_system != "Darwin"

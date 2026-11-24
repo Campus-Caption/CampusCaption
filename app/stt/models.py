@@ -24,23 +24,35 @@ from app.stt.engines.base import BatchEngine
 log = logging.getLogger("campuscaption.stt")
 
 LOCAL_MODELS: dict[str, dict] = {
+    "nemotron": {
+        "label": "NVIDIA Nemotron 3.5 ASR Streaming 0.6B (fastest and lightest)",
+        "needs": ("sherpa_onnx",),
+        "pip": "sherpa-onnx",
+        "size": "475 MB",
+    },
     "parakeet": {
         "label": "Parakeet v3 (fast, 25 languages)",
-        "needs": "sherpa_onnx",
+        "needs": ("sherpa_onnx",),
         "pip": "sherpa-onnx",
         "size": "465 MB",
     },
     "whisper-turbo": {
         "label": "Whisper large-v3-turbo (99 languages, GPU recommended)",
-        "needs": "faster_whisper",
+        "needs": ("faster_whisper",),
         "pip": "faster-whisper",
         "size": "1,6 GB",
     },
     "whisper-small": {
-        "label": "Whisper small (leicht, geringere Genauigkeit)",
-        "needs": "faster_whisper",
+        "label": "Whisper small (light, lower accuracy)",
+        "needs": ("faster_whisper",),
         "pip": "faster-whisper",
         "size": "470 MB",
+    },
+    "voxtral": {
+        "label": "Mistral Voxtral Mini 4B Realtime (best accuracy, NVIDIA GPU)",
+        "needs": ("torch", "transformers", "mistral_common"),
+        "pip": "-r requirements-voxtral.txt",
+        "size": "9 GB",
     },
 }
 
@@ -56,6 +68,21 @@ def _parakeet_factory(cfg: Settings, key: str, progress) -> BatchEngine:
     return parakeet.ParakeetEngine(folder, cfg.resolved_threads)
 
 
+def _nemotron_factory(cfg: Settings, key: str, progress) -> BatchEngine:
+    from app.stt.engines import nemotron
+
+    override = os.environ.get("STT_NEMOTRON_DIR")
+    folder = Path(override) if override else nemotron.ensure_model(Path(cfg.stt_model_dir), progress)
+    progress(0.98, "Starting model")
+    return nemotron.NemotronEngine(folder, cfg.resolved_threads)
+
+
+def _voxtral_factory(cfg: Settings, key: str, progress) -> BatchEngine:
+    from app.stt.engines.voxtral import VoxtralEngine
+
+    return VoxtralEngine(cfg.stt_device, progress)
+
+
 def _whisper_factory(cfg: Settings, key: str, progress) -> BatchEngine:
     from app.stt.engines.whisper import WhisperEngine
 
@@ -65,10 +92,13 @@ def _whisper_factory(cfg: Settings, key: str, progress) -> BatchEngine:
 
 # Tests replace entries here with fakes.
 FACTORIES: dict[str, Factory] = {
+    "nemotron": _nemotron_factory,
     "parakeet": _parakeet_factory,
     "whisper-turbo": _whisper_factory,
     "whisper-small": _whisper_factory,
+    "voxtral": _voxtral_factory,
 }
+_REAL_FACTORIES = set(FACTORIES.values())
 
 
 class _Entry:
@@ -94,10 +124,10 @@ class LocalModels:
     # ------------------------------------------------------------------ status
     def dependency(self, key: str) -> tuple[bool, str]:
         spec = LOCAL_MODELS[key]
-        if key in FACTORIES and FACTORIES[key] not in (_parakeet_factory, _whisper_factory):
+        if key in FACTORIES and FACTORIES[key] not in _REAL_FACTORIES:
             return True, ""  # a test double is installed
-        if importlib.util.find_spec(spec["needs"]) is None:
-            return False, f"Paket fehlt: pip install {spec['pip']}"
+        if any(importlib.util.find_spec(mod) is None for mod in spec["needs"]):
+            return False, f"Not installed: pip install {spec['pip']}"
         return True, ""
 
     def status(self, key: str) -> dict:

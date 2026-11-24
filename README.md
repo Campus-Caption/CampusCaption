@@ -1,7 +1,14 @@
 # CampusCaption
 
 Live captions for campus lectures or events. Speak into a microphone, captions appear on a beamer / OBS / any screen.
-Speech recognition runs only on local models (Parakeet or Whisper): audio never leaves this computer.
+Speech recognition runs only on local models: audio never leaves this computer.
+
+| Model | Best for | Needs |
+|---|---|---|
+| NVIDIA Nemotron 3.5 ASR Streaming 0.6B | fastest and lightest | CPU is enough (~475 MB) |
+| Parakeet v3 (default) | fast, 25 European languages | CPU is enough (~465 MB) |
+| Whisper large-v3-turbo / small | 99 languages | GPU recommended for turbo |
+| Mistral Voxtral Mini 4B Realtime | best accuracy | NVIDIA GPU (~16 GB), `pip install -r requirements-voxtral.txt`, ~9 GB download from Hugging Face |
 
 **Lecturer password.** Set `LECTURER_SECRET` in `.env` whenever other people can reach the server. Then starting,
 changing, clearing, exporting and ending captions (and streaming the microphone) need that password; the console asks
@@ -25,7 +32,7 @@ Manual start: `pip install -r requirements-local.txt` then `python main.py`. Doc
 
 - `main.py` - run locally
 - `app/api/routes/captions.py` - REST + WebSocket API
-- `app/stt/` - speech pipeline: VAD, segmenter, local engines (Parakeet / Whisper), optional Claude cleanup, session manager
+- `app/stt/` - speech pipeline: VAD, segmenter, local engines (Nemotron / Parakeet / Whisper / Voxtral), optional Claude cleanup, session manager
 - `app/templates/`, `frontend/static/` - console (`/`) and overlay (`/overlay`)
 - `scripts/stt_smoke.py` - run a WAV through a real local model and report speed
 - `tests/` - `pip install -r requirements-dev.txt && pytest`

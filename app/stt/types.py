@@ -9,7 +9,7 @@ SAMPLE_RATE = 16_000   # every engine receives 16 kHz mono float32
 FRAME = 512            # Silero VAD frame: 32 ms at 16 kHz
 FRAME_SECONDS = FRAME / SAMPLE_RATE
 
-LocalModel = Literal["parakeet", "whisper-turbo", "whisper-small"]
+LocalModel = Literal["nemotron", "parakeet", "whisper-turbo", "whisper-small", "voxtral"]
 
 
 class SessionSettings(BaseModel):

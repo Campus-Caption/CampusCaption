@@ -15,12 +15,13 @@ def new_session(client, **settings):
 def test_only_local_models_are_offered_and_keys_never_leak(client):
     data = client.get("/api/captions/engines").json()
     assert "engines" not in data
-    assert [m["id"] for m in data["models"]] == ["parakeet", "whisper-turbo", "whisper-small"]
+    assert [m["id"] for m in data["models"]] == ["nemotron", "parakeet", "whisper-turbo", "whisper-small", "voxtral"]
     assert "engine" not in data["defaults"] and "glossary" not in data["defaults"]
     assert data["polish"]["available"] is True
     assert "test-anthropic-key" not in str(data)
     text = str(data).lower()
-    assert "openai" not in text and "mistral" not in text
+    assert "openai" not in text and "audio is sent" not in text and "api_key" not in text
+    assert data["privacy"] == "Audio never leaves this computer."
 
 
 def test_no_auth_routes_remain(client):
