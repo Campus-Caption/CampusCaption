@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import asyncio
+import difflib
 import logging
+import re
 import time
 import uuid
 from collections import deque
@@ -21,6 +23,15 @@ log = logging.getLogger("campuscaption.stt")
 
 MAX_PENDING_SECONDS = 10      # audio buffered while the recognizer is still starting
 MAX_HISTORY = 3000
+MAX_MICS = 2                  # e.g. lecturer lav mic + audience mic
+CROSSTALK_WINDOW_S = 6.0      # a sentence repeated by the other mic within this window is a duplicate
+CROSSTALK_SIMILARITY = 0.8
+_WORD = re.compile(r"\w+", re.UNICODE)
+
+
+def _letters(text: str) -> str:
+    """Lower-case letters and digits only, so "back propagation" and "Backpropagation." compare equal."""
+    return "".join(_WORD.findall(text)).lower()
 
 
 class EngineUnavailable(Exception):
@@ -40,10 +51,11 @@ class Utterance:
     raw: str
     polished: bool = False
     model: str = ""
+    speaker: int = 1  # microphone number
 
     def public(self) -> dict:
         return {"utterance": self.id, "text": self.text, "start": round(self.start, 2), "end": round(self.end, 2),
-                "polished": self.polished}
+                "polished": self.polished, "speaker": self.speaker}
 
 
 class Subscriber:
@@ -76,6 +88,24 @@ class Subscriber:
         return out
 
 
+class Channel:
+    """One microphone feeding a session. Each has its own recognizer, so two mics never mix their audio."""
+
+    def __init__(self, number: int) -> None:
+        self.number = number
+        self.ingest_active = False
+        self.rec: Recognizer | None = None
+        self.pending: deque[np.ndarray] = deque()
+        self.pending_n = 0
+        self.dropped_samples = 0
+        self.ids: dict[tuple[int, int], int] = {}  # (recognizer generation, local utterance) -> caption id
+        self.generation = 0
+
+    def drop_pending(self) -> None:
+        self.pending.clear()
+        self.pending_n = 0
+
+
 class CaptionSession:
     def __init__(self, manager: "SessionManager", settings: SessionSettings) -> None:
         self.id = str(uuid.uuid4())
@@ -84,18 +114,26 @@ class CaptionSession:
         self.created = time.time()
         self.touched = time.time()
         self.t0 = time.monotonic()
-        self.ingest_active = False
+        self.channels: dict[int, Channel] = {n: Channel(n) for n in range(1, MAX_MICS + 1)}
+        self.mics_used: set[int] = set()  # once a second mic was used, captions show who is speaking
         self.history: deque[Utterance] = deque(maxlen=MAX_HISTORY)
-        self.live: dict | None = None
+        self.live: dict[int, dict] = {}  # channel -> current partial
         self.subs: set[Subscriber] = set()
         self.status: dict = {"type": "status", "state": "idle", "message": "", "progress": None}
-        self._rec: Recognizer | None = None
-        self._pending: deque[np.ndarray] = deque()
-        self._pending_n = 0
         self._lock = asyncio.Lock()
         self._max_id = 0
         self._cleared_upto = 0
-        self.dropped_samples = 0
+
+    @property
+    def ingest_active(self) -> bool:
+        return any(c.ingest_active for c in self.channels.values())
+
+    @property
+    def multi_mic(self) -> bool:
+        return len(self.mics_used) > 1
+
+    def channel(self, n: int) -> Channel:
+        return self.channels[n]
 
     # ------------------------------------------------------------------ fan-out
     def subscribe(self) -> Subscriber:
@@ -114,64 +152,78 @@ class CaptionSession:
 
     def public_settings(self) -> dict:
         s = self.settings
-        return {"local_model": s.local_model, "language": s.language, "polish": s.polish}
+        return {"local_model": s.local_model, "language": s.language, "polish": s.polish,
+                "speakers": list(s.speakers), "multi_mic": self.multi_mic}
 
     def snapshot(self) -> dict:
         return {"type": "snapshot", "session": self.id, "status": self.status, "settings": self.public_settings(),
-                "history": [u.public() for u in list(self.history)[-20:]], "live": self.live}
+                "history": [u.public() for u in list(self.history)[-20:]], "live": list(self.live.values())}
 
     def _set_status(self, state: str, message: str = "", progress: float | None = None) -> None:
         self.status = {"type": "status", "state": state, "message": message, "progress": progress,
                        "model": self.settings.local_model}
         self.broadcast(self.status)
 
+    def _refresh_status(self) -> None:
+        listening = any(c.rec is not None for c in self.channels.values())
+        self._set_status("listening" if listening else "idle", "")
+
     def latest_text(self) -> str:
         parts = [u.text for u in list(self.history)[-3:]]
-        if self.live:
-            parts.append((self.live["committed"] + " " + self.live["tentative"]).strip())
+        for lv in self.live.values():
+            parts.append((lv["committed"] + " " + lv["tentative"]).strip())
         return " ".join(parts)
 
     # ------------------------------------------------------------------ audio in
-    async def feed(self, data: bytes) -> None:
+    async def feed(self, data: bytes, mic: int = 1) -> None:
         x = pcm16_to_float(data)
         if not x.size:
             return
-        rec = self._rec
+        ch = self.channels[mic]
+        rec = ch.rec
         if rec is None:
-            self._pending.append(x)
-            self._pending_n += len(x)
-            while self._pending_n > MAX_PENDING_SECONDS * SAMPLE_RATE:
-                old = self._pending.popleft()
-                self._pending_n -= len(old)
-                self.dropped_samples += len(old)
+            ch.pending.append(x)
+            ch.pending_n += len(x)
+            while ch.pending_n > MAX_PENDING_SECONDS * SAMPLE_RATE:
+                old = ch.pending.popleft()
+                ch.pending_n -= len(old)
+                ch.dropped_samples += len(old)
             return
         try:
             await rec.feed(x)
         except Exception:
             log.exception("Recognizer failed while feeding audio")
             self._set_status("error", "Speech recognition failed.")
-            self._rec = None
+            ch.rec = None
 
     # ------------------------------------------------------------------ lifecycle
-    async def begin(self) -> None:
+    async def begin(self, mic: int = 1) -> None:
         async with self._lock:
-            if self._rec is not None:
+            ch = self.channels[mic]
+            if ch.rec is not None:
                 return
-            self._rec = await self._start_new("Starting speech recognition…")
-            await self._drain_pending()
+            ch.rec = await self._start_new(ch, "Starting speech recognition…")
+            if mic not in self.mics_used:
+                self.mics_used.add(mic)
+                if self.multi_mic:
+                    self.broadcast({"type": "settings", "settings": self.public_settings()})
+            await self._drain_pending(ch)
 
-    async def end(self, flush: bool = True) -> None:
+    async def end(self, flush: bool = True, mic: int | None = None) -> None:
+        """Stop one microphone, or all of them when `mic` is None."""
         async with self._lock:
-            rec, self._rec = self._rec, None
-            self._pending.clear()
-            self._pending_n = 0
-            if rec is not None:
-                try:
-                    await rec.stop(flush)
-                except Exception:
-                    log.exception("Stopping recognizer failed")
-            self.live = None
-            self._set_status("idle", "")
+            for ch in self.channels.values():
+                if mic is not None and ch.number != mic:
+                    continue
+                rec, ch.rec = ch.rec, None
+                ch.drop_pending()
+                if rec is not None:
+                    try:
+                        await rec.stop(flush)
+                    except Exception:
+                        log.exception("Stopping recognizer failed")
+                self.live.pop(ch.number, None)
+            self._refresh_status()
 
     async def apply_settings(self, new: SessionSettings) -> None:
         self.mgr.check_engine(new)
@@ -180,34 +232,39 @@ class CaptionSession:
             self.settings = new
             self.broadcast({"type": "settings", "settings": self.public_settings()})
             changed = (old.local_model, old.language) != (new.local_model, new.language)
-            if self._rec is None or not changed:
+            running = [c for c in self.channels.values() if c.rec is not None]
+            if not running or not changed:
                 return
+            fresh: dict[int, Recognizer] = {}
             try:
-                fresh = await self._start_new("Switching speech recognition…")
+                for ch in running:
+                    fresh[ch.number] = await self._start_new(ch, "Switching speech recognition…")
             except Exception:
-                self.settings = old  # keep the working engine running
+                for rec in fresh.values():
+                    await rec.stop(False)
+                self.settings = old  # keep the working model running
                 self.broadcast({"type": "settings", "settings": self.public_settings()})
                 self._set_status("listening", "Switch failed, the previous model keeps running.")
                 raise
-            previous, self._rec = self._rec, fresh
-            await self._drain_pending()
-            try:
-                await previous.stop(True)
-            except Exception:
-                log.exception("Stopping previous recognizer failed")
+            for ch in running:
+                previous, ch.rec = ch.rec, fresh[ch.number]
+                await self._drain_pending(ch)
+                try:
+                    await previous.stop(True)
+                except Exception:
+                    log.exception("Stopping previous recognizer failed")
 
-    async def _drain_pending(self) -> None:
-        rec = self._rec
-        while rec is not None and self._pending:
-            chunk = self._pending.popleft()
-            self._pending_n -= len(chunk)
-            await rec.feed(chunk)
+    async def _drain_pending(self, ch: Channel) -> None:
+        while ch.rec is not None and ch.pending:
+            chunk = ch.pending.popleft()
+            ch.pending_n -= len(chunk)
+            await ch.rec.feed(chunk)
 
-    async def _start_new(self, message: str) -> Recognizer:
+    async def _start_new(self, ch: Channel, message: str) -> Recognizer:
         self._set_status("loading", message, 0.0)
         tracker = asyncio.create_task(self._track_loading())
         try:
-            rec = await self._build()
+            rec = await self._build(ch)
             await rec.start()
         except EngineUnavailable as exc:
             self._set_status("error", str(exc))
@@ -229,10 +286,11 @@ class CaptionSession:
                 self._set_status("loading", st["message"] or "Loading model…", st["progress"])
             await asyncio.sleep(0.8)
 
-    async def _build(self) -> Recognizer:
+    async def _build(self, ch: Channel) -> Recognizer:
         s = self.settings
-        base = self._max_id
-        emit = lambda ev: self._on_event(ev, base)  # noqa: E731
+        ch.generation += 1
+        gen = ch.generation
+        emit = lambda ev: self._on_event(ev, ch, gen)  # noqa: E731
         key, lang = s.local_model, s.language_hint
         self.mgr.check_engine(s)
         await self.mgr.models.ensure(key)
@@ -243,7 +301,34 @@ class CaptionSession:
         return ChunkedRecognizer(emit, transcribe)
 
     # ------------------------------------------------------------------ recogniser events
-    def _on_event(self, ev: dict, base: int) -> None:
+    def _caption_id(self, ch: Channel, gen: int, local: int) -> int:
+        """Both mics count their sentences from 1; give every sentence one session-wide id."""
+        key = (gen, local)
+        gid = ch.ids.get(key)
+        if gid is None:
+            self._max_id += 1
+            gid = ch.ids[key] = self._max_id
+            if len(ch.ids) > 4 * MAX_HISTORY:
+                for k in list(ch.ids)[: len(ch.ids) // 2]:
+                    del ch.ids[k]
+        return gid
+
+    def _is_crosstalk(self, ch: Channel, text: str, end: float) -> bool:
+        """True if another mic already captioned the same words just now (one mic picked up the other)."""
+        mine = _letters(text)
+        if not mine:
+            return False
+        for u in reversed(self.history):
+            if end - u.end > CROSSTALK_WINDOW_S:
+                break
+            if u.speaker == ch.number:
+                continue
+            other = _letters(u.raw)
+            if other and difflib.SequenceMatcher(None, mine, other, autojunk=False).ratio() >= CROSSTALK_SIMILARITY:
+                return True
+        return False
+
+    def _on_event(self, ev: dict, ch: Channel, gen: int) -> None:
         t = ev["type"]
         if t == "error":
             soft = ev.get("soft", False)
@@ -251,24 +336,26 @@ class CaptionSession:
                 self.status = {**self.status, "message": ev["message"]}
             self.broadcast({"type": "error", "message": ev["message"], "soft": soft})
             return
-        gid = base + ev["utterance"]
-        self._max_id = max(self._max_id, gid)
+        gid = self._caption_id(ch, gen, ev["utterance"])
         if gid <= self._cleared_upto:
             return  # belongs to a sentence that was cleared from the screen
+        speaker = ch.number
         if t == "partial":
-            self.live = {"type": "partial", "utterance": gid, "committed": ev["committed"], "tentative": ev["tentative"]}
-            self.broadcast(self.live)
+            lv = {"type": "partial", "utterance": gid, "speaker": speaker,
+                  "committed": ev["committed"], "tentative": ev["tentative"]}
+            self.live[speaker] = lv
+            self.broadcast(lv)
             return
         if t == "final":
-            if self.live and self.live["utterance"] == gid:
-                self.live = None
+            if self.live.get(speaker, {}).get("utterance") == gid:
+                self.live.pop(speaker, None)
             text = ev["text"]
-            if not text:
+            end = time.monotonic() - self.t0
+            if not text or (self.multi_mic and self._is_crosstalk(ch, text, end)):
                 self.broadcast({"type": "final", "utterance": gid, "text": ""})
                 return
-            end = time.monotonic() - self.t0
             u = Utterance(gid, max(0.0, end - max(0.0, ev["end"] - ev["start"])), end, text, text,
-                          model=self.settings.local_model)
+                          model=self.settings.local_model, speaker=speaker)
             self.history.append(u)
             self.broadcast({"type": "final", **u.public(), "latency": ev.get("latency", 0.0)})
             if self.settings.polish and self.mgr.polisher is not None:
@@ -286,17 +373,19 @@ class CaptionSession:
 
     # ------------------------------------------------------------------ misc
     def clear(self) -> None:
-        self._cleared_upto = self._max_id  # the sentence being spoken right now is dropped too
+        self._cleared_upto = self._max_id  # the sentences being spoken right now are dropped too
         self.history.clear()
-        self.live = None
+        self.live.clear()
         self.broadcast({"type": "clear"})
 
     def transcript(self) -> list[dict]:
-        return [u.public() for u in self.history]
+        labels = self.settings.speakers if self.multi_mic else None
+        return [{**u.public(), "label": labels[u.speaker - 1] if labels else ""} for u in self.history]
 
-    def stats(self) -> dict:
-        return {"dropped_seconds": round(self.dropped_samples / SAMPLE_RATE, 1),
-                **(self._rec.stats() if self._rec else {})}
+    def stats(self, mic: int = 1) -> dict:
+        ch = self.channels[mic]
+        return {"mic": mic, "dropped_seconds": round(ch.dropped_samples / SAMPLE_RATE, 1),
+                **(ch.rec.stats() if ch.rec else {})}
 
 
 class SessionManager:

@@ -19,6 +19,7 @@ class SettingsPatch(BaseModel):
     local_model: str | None = None
     language: str | None = Field(None, pattern=r"^(auto|[a-z]{2})$")
     polish: bool | None = None
+    speakers: list[str] | None = None
 
 
 class CaptionChunk(BaseModel):

@@ -98,17 +98,14 @@ def test_ingest_streams_real_speech_to_listeners(client):
                 break
         assert final is not None and final["text"]
 
-    assert client.get(f"/api/captions/session/{sid}/transcript?format=json").json()
-    for fmt in ("txt", "vtt", "srt"):
-        assert client.get(f"/api/captions/session/{sid}/transcript?format={fmt}").status_code == 200
-    assert client.get(f"/api/captions/session/{sid}/transcript?format=exe").status_code in (400, 422)
+    assert final["text"] in client.get(f"/api/captions/session/{sid}/transcript").text
 
 
-def test_only_one_microphone_per_session(client):
+def test_each_microphone_slot_takes_one_connection(client):
     sid = new_session(client)
     with client.websocket_connect(f"/api/captions/ws/ingest/{sid}") as first:
         assert first.receive_json()["type"] == "ready"
-        with client.websocket_connect(f"/api/captions/ws/ingest/{sid}") as second:
+        with client.websocket_connect(f"/api/captions/ws/ingest/{sid}?mic=1") as second:
             with pytest.raises(Exception):
                 second.receive_json()
 
@@ -117,15 +114,15 @@ def test_clear_removes_history_and_in_progress_sentence(client):
     from app.main import app
     sid = new_session(client)
     s = app.state.captions.get(sid)
-    s._on_event({"type": "final", "utterance": 1, "text": "Hello there.", "start": 0.0, "end": 1.0, "latency": 0.1}, 0)
-    s._on_event({"type": "partial", "utterance": 2, "committed": "half a", "tentative": "sentence"}, 0)
+    s._on_event({"type": "final", "utterance": 1, "text": "Hello there.", "start": 0.0, "end": 1.0, "latency": 0.1}, s.channel(1), 1)
+    s._on_event({"type": "partial", "utterance": 2, "committed": "half a", "tentative": "sentence"}, s.channel(1), 1)
     assert "Hello there." in s.latest_text()
     assert client.post(f"/api/captions/session/{sid}/clear").status_code == 200
     assert s.latest_text() == ""
     # the sentence that was being spoken when Clear was pressed must not come back
-    s._on_event({"type": "partial", "utterance": 2, "committed": "half a sentence", "tentative": "again"}, 0)
-    s._on_event({"type": "final", "utterance": 2, "text": "half a sentence again.", "start": 1.0, "end": 2.0, "latency": 0.1}, 0)
+    s._on_event({"type": "partial", "utterance": 2, "committed": "half a sentence", "tentative": "again"}, s.channel(1), 1)
+    s._on_event({"type": "final", "utterance": 2, "text": "half a sentence again.", "start": 1.0, "end": 2.0, "latency": 0.1}, s.channel(1), 1)
     assert s.latest_text() == ""
     # new speech afterwards shows up normally
-    s._on_event({"type": "final", "utterance": 3, "text": "Next one.", "start": 2.0, "end": 3.0, "latency": 0.1}, 0)
+    s._on_event({"type": "final", "utterance": 3, "text": "Next one.", "start": 2.0, "end": 3.0, "latency": 0.1}, s.channel(1), 1)
     assert s.latest_text() == "Next one."

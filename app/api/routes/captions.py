@@ -148,9 +148,12 @@ def transcript(s: CaptionSession = Depends(owned_session)):
 
 # --------------------------------------------------------------------------- websockets
 @router.websocket("/ws/ingest/{session_id}")
-async def ws_ingest(ws: WebSocket, session_id: str):
+async def ws_ingest(ws: WebSocket, session_id: str, mic: int = 1):
     """Browser microphone -> server: binary frames of 16 kHz mono PCM16 little-endian, plus JSON control
     messages ({"type":"start"} / {"type":"stop"} / {"type":"ping"}).
+
+    `?mic=1` (default) or `?mic=2`: each microphone connects on its own socket and gets its own recognizer,
+    so a lecturer mic and an audience mic are captioned separately and tagged with their speaker label.
 
     If a lecturer secret is configured, the first message must be {"type":"auth","secret":"..."} (sent in the
     body rather than the URL so it never shows up in access logs); otherwise the socket is closed with 4401."""
@@ -170,17 +173,21 @@ async def ws_ingest(ws: WebSocket, session_id: str):
     if session is None:
         await ws.close(4404)
         return
-    if session.ingest_active:
+    if mic not in session.channels:
+        await ws.close(4422)
+        return
+    channel = session.channel(mic)
+    if channel.ingest_active:
         await ws.close(4409)
         return
 
-    session.ingest_active = True
+    channel.ingest_active = True
     starter: asyncio.Task | None = None
 
     async def start() -> None:
         try:
-            await session.begin()
-            await ws.send_json({"type": "started"})
+            await session.begin(mic)
+            await ws.send_json({"type": "started", "mic": mic})
         except EngineUnavailable as exc:
             await ws.send_json({"type": "start_failed", "message": str(exc)})
         except Exception as exc:  # pragma: no cover - defensive
@@ -197,7 +204,7 @@ async def ws_ingest(ws: WebSocket, session_id: str):
                 if len(m["bytes"]) > MAX_FRAME_BYTES:
                     await ws.close(1009)
                     break
-                await session.feed(m["bytes"])
+                await session.feed(m["bytes"], mic)
             elif m.get("text"):
                 try:
                     cmd = json.loads(m["text"]).get("type")
@@ -208,17 +215,17 @@ async def ws_ingest(ws: WebSocket, session_id: str):
                 elif cmd == "stop":
                     if starter and not starter.done():
                         starter.cancel()
-                    await session.end(flush=True)
-                    await ws.send_json({"type": "stopped"})
+                    await session.end(flush=True, mic=mic)
+                    await ws.send_json({"type": "stopped", "mic": mic})
                 elif cmd == "ping":
-                    await ws.send_json({"type": "pong", "stats": session.stats()})
+                    await ws.send_json({"type": "pong", "stats": session.stats(mic)})
     except Exception:
         log.debug("ingest connection closed", exc_info=True)
     finally:
-        session.ingest_active = False
+        channel.ingest_active = False
         if starter and not starter.done():
             starter.cancel()
-        await session.end(flush=True)
+        await session.end(flush=True, mic=mic)
 
 
 @router.websocket("/ws/listen/{session_id}")
