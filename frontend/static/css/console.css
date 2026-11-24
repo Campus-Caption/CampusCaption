@@ -43,6 +43,11 @@ body { margin: 0; background: var(--desk); color: var(--ink); font: 400 1.0625re
 .mark i { display: block; height: 5px; border-radius: 1px; background: var(--ink); }
 .mark i:last-child { width: 62%; background: var(--tally); }
 
+.top-right { display: flex; align-items: center; gap: .75rem 1.5rem; flex-wrap: wrap; justify-content: flex-end; }
+.projector { display: flex; align-items: center; gap: .25rem; }
+.projector .primary { padding: .6rem 1rem; }
+.link-btn { background: none; color: var(--ink); font-weight: 700; font-size: .9375rem; padding: .6rem .7rem; border-radius: 6px; }
+.link-btn:hover { background: var(--paper); text-decoration: underline; text-decoration-color: var(--tha-pink); text-underline-offset: 3px; }
 .onair { display: inline-flex; align-items: center; gap: .55rem; margin: 0; font-weight: 700; font-size: .9375rem; }
 .lamp { width: .65rem; height: .65rem; border-radius: 50%; background: #b3b3b3; flex: none; }
 #clock { font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 500; }
@@ -116,7 +121,7 @@ button:disabled { opacity: .55; cursor: default; }
 .primary:hover { background: var(--black); }
 .secondary { background: var(--field); color: var(--ink); box-shadow: inset 0 0 0 1px #c4c4c4; font-weight: 500; }
 .secondary:hover { box-shadow: inset 0 0 0 1px var(--ink); }
-.danger { background: none; color: #b3261e; padding: .4rem 0; font-weight: 700; margin-top: 1.25rem; }
+.danger { background: none; color: #b3261e; padding: .7rem .5rem; font-weight: 700; margin-left: auto; }
 .danger:hover { text-decoration: underline; }
 
 /* ---------- desk blocks: separated by space and a hairline, not boxed ---------- */
@@ -179,6 +184,57 @@ select:hover, input[type="text"]:hover { border-color: var(--ink); }
 
 .actions { display: flex; flex-wrap: wrap; gap: .6rem; margin-bottom: .75rem; }
 
+/* ---------- end-of-lecture report ---------- */
+.report { margin-bottom: 1.5rem; padding: 1.75rem 2rem 2rem; background: var(--paper); border-radius: 10px; border-top: 6px solid var(--tha-pink); }
+.report:focus { outline: none; }
+.report-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem 1rem; }
+.report-head h2 { font-size: 1.75rem; line-height: 1.2; max-width: 32ch; }
+.report-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.r-wait { margin: 1rem 0 .75rem; color: var(--muted); }
+.r-progress { display: block; width: 100%; height: 4px; margin: 0; background: var(--rule); }
+.r-progress::-webkit-progress-bar { background: var(--rule); }
+.r-progress::-moz-progress-bar { background: var(--tha-pink); }
+
+.figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: 1rem 1.5rem; margin: 1.25rem 0 0; padding: 1rem 0; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
+.figures div { min-width: 0; }
+.figures dt { color: var(--muted); font-size: .9375rem; }
+.figures dd { margin: .1rem 0 0; font-size: 1.375rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.figures dd.na { font-size: .9375rem; font-weight: 500; color: var(--muted); padding-top: .35rem; }
+.r-summary { margin: 1.25rem 0 0; font-size: 1.125rem; line-height: 1.55; max-width: 68ch; }
+
+.r-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 0 2.5rem; }
+.r-sec { margin-top: 1.75rem; }
+.r-sec h3 { margin: 0 0 .6rem; font-size: 1.125rem; font-weight: 800; }
+.r-sec ul, .r-sec ol { margin: 0; padding: 0; }
+.r-time { margin: 0; color: var(--muted); font-size: .9375rem; font-variant-numeric: tabular-nums; }
+
+.r-moments, .r-questions { list-style: none; display: grid; gap: .75rem; }
+.r-moments li, .r-questions li { background: var(--white); border-radius: 8px; padding: .85rem 1rem; }
+.r-moments p, .r-questions p { margin: .25rem 0 0; }
+.r-moments blockquote { margin: .35rem 0 .4rem; padding-left: .75rem; border-left: 3px solid var(--tha-pink); font-style: italic; }
+.r-fix b { color: var(--tha-pink-ink); }
+.r-questions li.open { box-shadow: inset 4px 0 0 var(--tha-pink); }
+.r-questions li.answered { box-shadow: inset 4px 0 0 var(--level); }
+.r-status { margin-left: .4rem; font-weight: 700; color: var(--ink); }
+.open .r-status { color: var(--tha-pink-ink); }
+.r-q { font-weight: 700; }
+
+.r-topics { list-style: none; display: grid; gap: .6rem; }
+.r-topics li { display: grid; grid-template-columns: 3.5rem 1fr; column-gap: .5rem; }
+.r-topics li > b { grid-column: 2; }
+.r-topics li > span:last-child { grid-column: 2; color: var(--muted); font-size: .9375rem; }
+.r-topics .r-time { grid-row: 1 / span 2; }
+
+.r-list { padding-left: 1.25rem !important; display: grid; gap: .45rem; }
+.r-terms { margin: 0; display: grid; gap: .5rem; }
+.r-terms dt { font-weight: 700; }
+.r-terms dd { margin: 0; color: var(--muted); font-size: .9375rem; }
+.r-table { width: 100%; border-collapse: collapse; font-size: .9375rem; }
+.r-table th { text-align: left; color: var(--muted); font-weight: 500; padding: .3rem .5rem .3rem 0; border-bottom: 1px solid var(--rule); }
+.r-table td { padding: .4rem .5rem .4rem 0; border-bottom: 1px solid var(--rule); vertical-align: top; }
+.r-table td:first-child { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.r-foot { margin-top: 1.75rem; }
+
 /* notices */
 .notice { margin: 0 0 1rem; padding: .85rem 1.1rem; border-radius: 8px; border-left: 4px solid; font-size: .9375rem; }
 .notice.error { background: #ffe8ee; color: #7a0026; border-color: var(--tally); }
@@ -200,4 +256,15 @@ select:hover, input[type="text"]:hover { border-color: var(--ink); }
   .strip .meter { grid-column: 2; grid-row: 3; }
   .strip .strip-end { grid-column: 3; grid-row: 1; }
   .actions > * { flex: 1 1 100%; }
+  .report { padding: 1.25rem 1rem 1.5rem; }
+  .report-head h2 { font-size: 1.375rem; }
+  .report-actions > * { flex: 1 1 100%; }
+  .r-grid { grid-template-columns: 1fr; }
+  .danger { margin-left: 0; }
+  /* phone: brand and Live on one line, the projector buttons as one full-width row below */
+  .top { display: grid; grid-template-columns: 1fr auto; row-gap: .75rem; }
+  .top-right { display: contents; }
+  .projector { grid-column: 1 / -1; }
+  .projector .primary { flex: 1 1 auto; min-width: 0; padding: .6rem .75rem; font-size: .9375rem; }
+  .link-btn { font-size: .875rem; padding: .6rem .45rem; white-space: nowrap; }
 }

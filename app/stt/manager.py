@@ -15,6 +15,7 @@ import numpy as np
 from app.core.config import Settings
 from app.stt.audio import pcm16_to_float
 from app.stt.models import LOCAL_MODELS, LocalModels
+from app.stt.analysis import LectureAnalyzer
 from app.stt.polish import ClaudePolisher
 from app.stt.recognizers import ChunkedRecognizer, Recognizer
 from app.stt.types import SAMPLE_RATE, SessionSettings
@@ -394,6 +395,8 @@ class SessionManager:
         self.models = LocalModels(cfg)
         self.sessions: dict[str, CaptionSession] = {}
         self.polisher = ClaudePolisher(cfg.anthropic_api_key, cfg.claude_model) if cfg.anthropic_api_key else None
+        self.analyzer = (LectureAnalyzer(cfg.anthropic_api_key, cfg.claude_analysis_model)
+                         if cfg.anthropic_api_key else None)
         self._janitor: asyncio.Task | None = None
 
     # ------------------------------------------------------------------ setup / teardown
@@ -410,6 +413,8 @@ class SessionManager:
         self.models.shutdown()
         if self.polisher:
             await self.polisher.aclose()
+        if self.analyzer:
+            await self.analyzer.aclose()
 
     async def _sweep(self) -> None:
         keep = self.cfg.stt_session_retention_hours * 3600
@@ -440,6 +445,10 @@ class SessionManager:
             "polish": {"available": self.polisher is not None, "model": c.claude_model,
                        "reason": "" if self.polisher else "ANTHROPIC_API_KEY is missing",
                        "privacy": "Finished sentences (text only) are sent to Anthropic."},
+            "analysis": {"available": self.analyzer is not None,
+                         "model": self.analyzer.model if self.analyzer else "",
+                         "reason": "" if self.analyzer else "ANTHROPIC_API_KEY is missing",
+                         "privacy": "When the session ends, the transcript (text only) is sent to Anthropic once."},
             "defaults": self.default_settings().model_dump(),
         }
 

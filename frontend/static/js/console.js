@@ -80,6 +80,12 @@ function renderSettings(info) {
   $("polish").closest("label").hidden = !info.polish.available; // optional extra: only shown once ANTHROPIC_API_KEY is set
   $("polish-hint").hidden = !info.polish.available;
   $("polish-hint").textContent = info.polish.available ? info.polish.privacy : `Not available: ${info.polish.reason}`;
+  const an = info.analysis || { available: false, reason: "" };
+  $("analyse").checked = an.available && saved.analyse !== false;
+  $("analyse").disabled = !an.available;
+  $("analyse-privacy").textContent = an.available
+    ? an.privacy + " Audio is never sent."
+    : "AI analysis needs ANTHROPIC_API_KEY in .env. Without it you still get the numbers (duration, pace, questions).";
 }
 
 function onSettingsChange() {
@@ -102,6 +108,20 @@ async function errorMessage(res) {
 }
 
 // ------------------------------------------------------------------ session + feed
+const overlayUrl = (extra = "") => `${location.origin}/overlay?session=${S.sessionId}${extra}`;
+
+// The caption screen can be opened before captions start: the first click creates the session.
+// The window is opened synchronously (so pop-up blockers allow it) and pointed at the session once it exists.
+async function openCaptionScreen(e) {
+  if (S.sessionId) return; // the link already points at the session
+  e.preventDefault();
+  const win = window.open("about:blank", "_blank");
+  if (await ensureSession()) {
+    if (win) win.location.href = overlayUrl(); else location.assign(overlayUrl());
+  } else if (win) {
+    win.close();
+  }
+}
 async function ensureSession() {
   if (S.sessionId) return true;
   const res = await api("/api/captions/session", {
@@ -109,8 +129,7 @@ async function ensureSession() {
   });
   if (!res.ok) { notice(await errorMessage(res), "error"); return false; }
   S.sessionId = (await res.json()).session_id;
-  const url = `${location.origin}/overlay?session=${S.sessionId}`;
-  $("overlay-link").href = url;
+  $("overlay-link").href = overlayUrl();
   $("share").hidden = false;
   S.feed = CaptionFeed.connect(S.sessionId, { onEvent: onFeed });
   return true;
@@ -319,11 +338,31 @@ function stop() {
 
 // ------------------------------------------------------------------ wiring
 async function endSession() {
-  if (!S.sessionId || !confirm("End this session? The caption screen will disconnect and the transcript will be gone.")) return;
+  if (!S.sessionId) return;
+  const ai = !!S.info.analysis?.available && $("analyse").checked;
+  const ask = ai
+    ? "End this session? Captions stop, the caption screen disconnects, and Claude analyses the transcript."
+    : "End this session? Captions stop and the caption screen disconnects.";
+  if (!confirm(ask)) return;
   stop();
-  await api(`/api/captions/session/${S.sessionId}`, { method: "DELETE" });
-  S.feed?.close(); S.feed = null; S.sessionId = null;
-  renderer.reset(); $("share").hidden = true; $("stats").textContent = "";
+  const sid = S.sessionId;
+  Report.loading(ai);
+  let transcript = "", result = null;
+  try {
+    const t = await api(`/api/captions/session/${sid}/transcript`);
+    if (t.ok) transcript = await t.text();
+    const r = await api(`/api/captions/session/${sid}/analysis?ai=${ai}`, { method: "POST" });
+    result = r.ok ? await r.json() : { error: await errorMessage(r) };
+  } catch (e) {
+    result = { error: "The analysis could not be loaded: " + (e.message || e) };
+  } finally {
+    // the session (and its transcript) is deleted on the server either way; the browser keeps the copy above
+    await api(`/api/captions/session/${sid}`, { method: "DELETE" }).catch(() => {});
+    S.feed?.close(); S.feed = null; S.sessionId = null;
+    renderer.reset(); $("share").hidden = true; $("stats").textContent = "";
+    $("overlay-link").href = "/overlay";
+  }
+  Report.show(result, transcript);
 }
 
 async function exportTranscript() {
@@ -367,10 +406,14 @@ async function init() {
   $("remove-mic").onclick = () => { setSecondMic(false); $("add-mic").focus(); };
 
   $("clear").onclick = async () => { if (S.sessionId) await api(`/api/captions/session/${S.sessionId}/clear`, { method: "POST" }); else renderer.reset(); };
-  $("copy-link").onclick = (e) => copy($("overlay-link").href, e.target);
-  $("copy-obs").onclick = (e) => copy($("overlay-link").href + "&theme=transparent&controls=0&hide=0", e.target);
+  $("overlay-link").addEventListener("click", openCaptionScreen);
+  $("copy-link").onclick = async (e) => { if (await ensureSession()) copy(overlayUrl(), e.target); };
   $("export").onclick = exportTranscript;
   $("end").onclick = endSession;
+  $("analyse").addEventListener("change", () => store.set({ analyse: $("analyse").checked }));
+  $("close-report").onclick = () => { $("report").hidden = true; };
+  $("dl-analysis").onclick = () => Report.download("markdown");
+  $("dl-transcript").onclick = () => Report.download("transcript");
   window.addEventListener("beforeunload", (e) => { if (S.wantOn) { e.preventDefault(); e.returnValue = ""; } });
 }
 init();

@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     stt_session_retention_hours: int = 12      # how long a finished session stays readable
     anthropic_api_key: str = ""                # enables the optional Claude clean-up of captions
     claude_model: str = "claude-haiku-5-5"
+    claude_analysis_model: str = "claude-opus-5-5"  # end-of-lecture analysis for the professor
 
     @property
     def resolved_threads(self) -> int:

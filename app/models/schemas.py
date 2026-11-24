@@ -21,8 +21,3 @@ class SettingsPatch(BaseModel):
     polish: bool | None = None
     speakers: list[str] | None = None
 
-
-class CaptionChunk(BaseModel):
-    session_id: str
-    text: str
-    is_final: bool = False
