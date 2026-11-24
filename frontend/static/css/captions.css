@@ -5,5 +5,5 @@
 .cap-line.live .tentative { opacity: .6; }
 /* Speaker tag once two microphones are used: bold text label plus a colour, never colour alone. */
 .cap-speaker { font-weight: 800; font-size: .8em; letter-spacing: .02em; }
-.cap-line[data-speaker="1"] .cap-speaker { color: var(--speaker-1, #8fd3ff); }
-.cap-line[data-speaker="2"] .cap-speaker { color: var(--speaker-2, #ffd166); }
+.cap-line[data-speaker="1"] .cap-speaker { color: var(--speaker-1, #ff0350); }
+.cap-line[data-speaker="2"] .cap-speaker { color: var(--speaker-2, #d4d4d4); }
