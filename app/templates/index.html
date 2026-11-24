@@ -6,165 +6,118 @@
   <title>CampusCaption Console</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Atkinson+Hyperlegible+Next:wght@400;500;700&display=swap" />
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Crect width=%2216%22 height=%2216%22 rx=%224%22 fill=%22%232448c8%22/%3E%3Crect x=%223%22 y=%225%22 width=%2210%22 height=%222%22 fill=%22%23fff%22/%3E%3Crect x=%223%22 y=%229%22 width=%226%22 height=%222%22 fill=%22%23fff%22/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700;800&display=swap" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Crect y=%223%22 width=%2216%22 height=%224%22 fill=%22%231a2030%22/%3E%3Crect y=%229%22 width=%2210%22 height=%224%22 fill=%22%23e1352e%22/%3E%3C/svg%3E" />
   <link rel="stylesheet" href="/static/css/captions.css" />
   <link rel="stylesheet" href="/static/css/console.css" />
 </head>
 <body data-state="off">
-  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
-    <defs>
-      <symbol id="i-cc" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M7 10h6M7 14h3M15 14h2"/></symbol>
-      <symbol id="i-live" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><path d="M8.5 15.5a5 5 0 0 1 0-7M15.5 8.5a5 5 0 0 1 0 7M5.6 18.4a9 9 0 0 1 0-12.8M18.4 5.6a9 9 0 0 1 0 12.8"/></symbol>
-      <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></symbol>
-      <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></symbol>
-      <symbol id="i-screen" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></symbol>
-      <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/></symbol>
-      <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
-      <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
-      <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
-    </defs>
-  </svg>
+  <div class="page">
+    <header class="top">
+      <span class="brand"><span class="mark" aria-hidden="true"><i></i><i></i></span>CampusCaption</span>
+      <p class="onair" id="state-chip" aria-live="polite">
+        <span class="lamp" aria-hidden="true"></span>
+        <span id="state-text">Off</span>
+        <time id="clock" hidden>0:00</time>
+      </p>
+    </header>
 
-  <div class="shell">
-    <!-- Column 1: navigation -->
-    <aside class="sidebar">
-      <a class="brand" href="/">
-        <span class="logo"><svg class="ic"><use href="#i-cc"/></svg></span>
-        <span class="brand-text"><b>Campus<em>Caption</em></b><small>Accessible learning</small></span>
-      </a>
-      <nav aria-label="Console sections">
-        <p class="nav-title">Console</p>
-        <a href="#live" class="nav-item active" aria-current="true"><svg class="ic"><use href="#i-live"/></svg>Live captions</a>
-        <a href="#mics" class="nav-item"><svg class="ic"><use href="#i-mic"/></svg>Microphones</a>
-        <a href="#recognition" class="nav-item"><svg class="ic"><use href="#i-sliders"/></svg>Recognition</a>
-        <a href="#output" class="nav-item"><svg class="ic"><use href="#i-screen"/></svg>Projector &amp; export</a>
-      </nav>
-      <div class="side-card">
-        <svg class="ic"><use href="#i-shield"/></svg>
-        <span><b>Local only</b><small>Audio never leaves this computer</small></span>
-      </div>
-    </aside>
+    <p id="gate" class="notice info" role="status" hidden></p>
 
-    <!-- Column 2: workspace -->
-    <main class="main">
-      <header class="page-head">
-        <div>
-          <p class="eyebrow">Lecturer console</p>
-          <h1>Live captions</h1>
-          <p class="lede">Speak into one or two microphones. Captions appear on every connected screen.</p>
+    <main id="app" hidden>
+      <!-- The monitor: exactly what the room sees, plus the one switch that matters -->
+      <section class="monitor" aria-label="Caption monitor">
+        <div class="tally" aria-hidden="true"></div>
+        <div id="preview" class="preview cap-box">
+          <div id="caps" class="cap-scroll" aria-live="polite"></div>
+          <p class="preview-empty">Press <b>Start captions</b> and speak. Captions appear here exactly as on the projector.</p>
         </div>
-        <span class="chip" id="state-chip"><span class="lamp" aria-hidden="true"></span><span id="state-text">Off</span></span>
-      </header>
+        <progress id="progress" max="1" value="0" hidden></progress>
+        <div class="controls">
+          <button id="power" type="button" class="power off" aria-pressed="false">
+            <span class="dot" aria-hidden="true"></span><span id="power-label">Start captions</span>
+          </button>
+          <button id="clear" type="button" class="quiet">Clear screen</button>
+          <p id="state-detail" class="detail"></p>
+          <p id="stats" class="stats"></p>
+        </div>
+      </section>
 
-      <p id="gate" class="notice info" role="status" hidden></p>
+      <!-- Microphones: channel strips -->
+      <section class="block" id="mics" aria-labelledby="mics-h">
+        <div class="block-head">
+          <h2 id="mics-h">Microphones</h2>
+          <p class="hint">With two microphones, each one is captioned on its own and labelled on screen.</p>
+        </div>
 
-      <section id="app" hidden>
-        <!-- Hero: what the audience sees, plus the big on/off switch -->
-        <section class="hero" id="live" aria-label="Caption monitor">
-          <div class="hero-copy">
-            <p class="hero-tag"><span class="hero-dot" aria-hidden="true"></span><span id="hero-tag-text">Ready when you are</span></p>
-            <h2>Learning is better<br />when everyone can follow.</h2>
-            <p id="state-detail" class="hero-detail"></p>
-            <progress id="progress" max="1" value="0" hidden></progress>
-            <div class="hero-actions">
-              <button id="power" type="button" class="power-btn off" aria-pressed="false">
-                <span class="dot" aria-hidden="true"></span><span id="power-label">Start captions</span>
-                <svg class="ic"><use href="#i-arrow"/></svg>
-              </button>
-              <button id="clear" type="button" class="ghost">Clear screen</button>
-            </div>
-            <p id="stats"></p>
+        <div class="strip s1" id="mic-row-1">
+          <span class="ch" aria-hidden="true">1</span>
+          <label class="sel"><span class="sr-only">Microphone 1 device</span><select id="mic-1"></select></label>
+          <label class="name"><span class="sr-only">Microphone 1 label</span><input id="label-1" type="text" maxlength="24" value="Lecturer" /></label>
+          <div class="meter" role="img" aria-label="Microphone 1 level"><i id="meter-1"></i></div>
+          <span class="strip-end" aria-hidden="true"></span>
+        </div>
+
+        <div class="strip s2" id="mic-row-2" hidden>
+          <span class="ch" aria-hidden="true">2</span>
+          <label class="sel"><span class="sr-only">Microphone 2 device</span><select id="mic-2"></select></label>
+          <label class="name"><span class="sr-only">Microphone 2 label</span><input id="label-2" type="text" maxlength="24" value="Audience" /></label>
+          <div class="meter" role="img" aria-label="Microphone 2 level"><i id="meter-2"></i></div>
+          <button id="remove-mic" type="button" class="strip-end x" aria-label="Remove microphone 2">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
+        </div>
+
+        <button id="add-mic" type="button" class="add">Add a second microphone</button>
+        <p class="hint warn" id="mic-hint"></p>
+      </section>
+
+      <!-- Recognition -->
+      <section class="block" id="recognition" aria-labelledby="rec-h">
+        <div class="block-head">
+          <h2 id="rec-h">Recognition</h2>
+          <p class="hint" id="model-hint"></p>
+        </div>
+        <div class="fields">
+          <label class="field wide">Speech model
+            <select id="local-model"></select>
+          </label>
+          <label class="field">Spoken language
+            <select id="language">
+              <option value="auto">Detect automatically</option>
+              <option value="de">German</option>
+              <option value="en">English</option>
+              <option value="fr">French</option>
+              <option value="es">Spanish</option>
+              <option value="it">Italian</option>
+              <option value="tr">Turkish</option>
+              <option value="uk">Ukrainian</option>
+            </select>
+          </label>
+        </div>
+        <label class="check"><input id="polish" type="checkbox" />
+          <span>Tidy sentences with Claude
+            <span class="hint">Fixes punctuation after recognition. It only sees text, never audio.</span>
+          </span>
+        </label>
+        <p id="polish-hint" class="hint"></p>
+      </section>
+
+      <!-- Projector & transcript -->
+      <section class="block" id="output" aria-labelledby="out-h">
+        <div class="block-head">
+          <h2 id="out-h">Projector and transcript</h2>
+          <p class="hint output-empty">Start captions once to get the projector link and the transcript.</p>
+        </div>
+        <div id="share" hidden>
+          <div class="actions">
+            <a id="overlay-link" class="primary" target="_blank" rel="noopener">Open caption screen</a>
+            <button id="copy-link" type="button" class="secondary">Copy screen link</button>
+            <button id="copy-obs" type="button" class="secondary">Copy OBS link</button>
+            <button id="export" type="button" class="secondary">Download transcript</button>
           </div>
-          <div id="preview" class="preview cap-box">
-            <div id="caps" class="cap-scroll" aria-live="polite"></div>
-            <p class="preview-empty">Captions appear here exactly as the audience sees them.</p>
-          </div>
-        </section>
-
-        <div class="cards">
-          <!-- Microphones -->
-          <section class="card" id="mics" aria-labelledby="mics-h">
-            <header class="card-head">
-              <span class="card-icon"><svg class="ic"><use href="#i-mic"/></svg></span>
-              <div><h2 id="mics-h">Microphones</h2><p class="hint">Two mics: each is captioned separately and labelled.</p></div>
-            </header>
-
-            <div class="mic-row" id="mic-row-1">
-              <div class="mic-top">
-                <span class="mic-badge s1">1</span>
-                <label class="field grow"><span class="sr-only">Microphone 1</span><select id="mic-1"></select></label>
-              </div>
-              <div class="mic-bottom">
-                <label class="field-inline">Label <input id="label-1" type="text" maxlength="24" value="Lecturer" /></label>
-                <div class="meter" title="Level microphone 1"><i id="meter-1"></i></div>
-              </div>
-            </div>
-
-            <div class="mic-row" id="mic-row-2" hidden>
-              <div class="mic-top">
-                <span class="mic-badge s2">2</span>
-                <label class="field grow"><span class="sr-only">Microphone 2</span><select id="mic-2"></select></label>
-                <button id="remove-mic" type="button" class="icon-btn" aria-label="Remove second microphone"><svg class="ic"><use href="#i-x"/></svg></button>
-              </div>
-              <div class="mic-bottom">
-                <label class="field-inline">Label <input id="label-2" type="text" maxlength="24" value="Audience" /></label>
-                <div class="meter" title="Level microphone 2"><i id="meter-2"></i></div>
-              </div>
-            </div>
-
-            <button id="add-mic" type="button" class="add-btn"><svg class="ic"><use href="#i-plus"/></svg>Add second microphone</button>
-            <p class="hint" id="mic-hint"></p>
-          </section>
-
-          <!-- Recognition -->
-          <section class="card" id="recognition" aria-labelledby="rec-h">
-            <header class="card-head">
-              <span class="card-icon"><svg class="ic"><use href="#i-sliders"/></svg></span>
-              <div><h2 id="rec-h">Recognition</h2><p class="hint">Runs on this computer.</p></div>
-            </header>
-            <label class="field">Speech model
-              <select id="local-model"></select>
-            </label>
-            <p id="model-hint" class="hint"></p>
-            <label class="field">Spoken language
-              <select id="language">
-                <option value="auto">Detect automatically</option>
-                <option value="de">German</option>
-                <option value="en">English</option>
-                <option value="fr">French</option>
-                <option value="es">Spanish</option>
-                <option value="it">Italian</option>
-                <option value="tr">Turkish</option>
-                <option value="uk">Ukrainian</option>
-              </select>
-            </label>
-            <label class="check"><input id="polish" type="checkbox" />
-              <span>Tidy sentences with Claude
-                <span class="hint">Fixes punctuation after recognition. It does not hear the audio.</span>
-              </span>
-            </label>
-            <p id="polish-hint" class="hint"></p>
-          </section>
-
-          <!-- Projector & export -->
-          <section class="card wide" id="output" aria-labelledby="out-h">
-            <header class="card-head">
-              <span class="card-icon"><svg class="ic"><use href="#i-screen"/></svg></span>
-              <div><h2 id="out-h">Projector &amp; export</h2><p class="hint">Show captions on the beamer, in OBS, or download them.</p></div>
-            </header>
-            <div id="share" hidden>
-              <div class="share-grid">
-                <a id="overlay-link" class="primary-link" target="_blank" rel="noopener">Open caption screen<svg class="ic"><use href="#i-arrow"/></svg></a>
-                <button id="copy-link" type="button" class="secondary">Copy screen link</button>
-                <button id="copy-obs" type="button" class="secondary">Copy OBS link (transparent)</button>
-                <button id="export" type="button" class="secondary">Download transcript (.txt)</button>
-              </div>
-              <p class="hint">Drag the caption screen onto the projector and press F for fullscreen.</p>
-              <button id="end" type="button" class="danger">End session</button>
-            </div>
-            <p class="output-empty">Start captions once to get a link for the projector, OBS and the transcript.</p>
-          </section>
+          <p class="hint">Drag the caption screen onto the projector and press F for full screen. The OBS link has a transparent background.</p>
+          <button id="end" type="button" class="danger">End session</button>
         </div>
       </section>
     </main>

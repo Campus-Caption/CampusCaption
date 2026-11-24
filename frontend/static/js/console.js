@@ -65,7 +65,7 @@ function renderSettings(info) {
     const o = document.createElement("option");
     o.value = m.id;
     o.disabled = !m.available;
-    o.textContent = `${m.label} · ${m.size}` + (m.available ? "" : " (not installed)");
+    o.textContent = `${m.label}, ${m.size}` + (m.available ? "" : " (not installed)");
     sel.appendChild(o);
   }
   const wanted = saved.local_model || d.local_model;
@@ -128,8 +128,6 @@ function setState(st) {
   S.state = st.state;
   const names = { idle: "Ready", loading: "Loading model…", listening: "Live", error: "Error" };
   $("state-text").textContent = S.wantOn || st.state !== "idle" ? (names[st.state] || st.state) : "Off";
-  const tags = { idle: "Ready when you are", loading: "Getting ready", listening: "Live now", error: "Needs attention" };
-  $("hero-tag-text").textContent = S.wantOn ? (tags[st.state] || st.state) : "Ready when you are";
   $("state-detail").textContent = st.message || "";
   const p = $("progress");
   p.hidden = !(st.state === "loading" && typeof st.progress === "number" && st.progress > 0);
@@ -140,6 +138,7 @@ function setState(st) {
   btn.classList.toggle("off", !S.wantOn);
   $("power-label").textContent = !S.wantOn ? "Start captions" : st.state === "loading" ? "Preparing…" : "Stop captions";
   btn.setAttribute("aria-pressed", String(S.wantOn));
+  runClock(S.wantOn && st.state === "listening");
   document.body.dataset.state = !S.wantOn ? "off" : st.state === "listening" ? "live" : st.state === "loading" ? "loading" : st.state === "error" ? "error" : "off";
 }
 
@@ -263,18 +262,36 @@ function stopMic(n) {
 }
 
 function showStats() {
-  const parts = [];
+  const box = $("stats");
+  box.textContent = "";
+  let slow = false;
   for (const n of activeMics()) {
     const st = S.mics[n].stats;
     if (!st) continue;
     const p = [];
     if (st.avg_final_latency != null) p.push(`delay ${st.avg_final_latency} s`);
-    if (st.utterances != null) p.push(`${st.utterances} sentences`);
-    if (st.backlog) p.push(`backlog ${st.backlog}`);
-    if (p.length) parts.push((secondMicOn() ? `Mic ${n}: ` : "") + p.join(", "));
-    if (st.backlog >= 3) parts.push("⚠ This model is too slow for real time on this computer – choose Parakeet, or use the GPU.");
+    if (st.utterances != null) p.push(`${st.utterances} ${st.utterances === 1 ? "sentence" : "sentences"}`);
+    if (st.backlog) p.push(`${st.backlog} waiting`);
+    if (p.length) box.append(Object.assign(document.createElement("span"), { textContent: (secondMicOn() ? `Mic ${n}: ` : "") + p.join(", ") }));
+    slow ||= st.backlog >= 3;
   }
-  $("stats").textContent = parts.join(" · ");
+  if (slow) box.append(Object.assign(document.createElement("span"), { className: "warn", textContent: "This model is too slow for live captions on this computer. Choose Nemotron or Parakeet, or use a GPU." }));
+}
+
+// Time on air, shown next to the Live lamp.
+function runClock(on) {
+  const el = $("clock");
+  if (!on) { clearInterval(S.clockTimer); S.clockTimer = null; S.liveSince = null; el.hidden = true; return; }
+  if (S.clockTimer) return;
+  S.liveSince = Date.now();
+  const tick = () => {
+    const s = Math.floor((Date.now() - S.liveSince) / 1000);
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = String(s % 60).padStart(2, "0");
+    el.textContent = h ? `${h}:${String(m).padStart(2, "0")}:${sec}` : `${m}:${sec}`;
+    el.dateTime = `PT${s}S`;
+  };
+  tick(); el.hidden = false;
+  S.clockTimer = setInterval(tick, 1000);
 }
 
 async function start() {
@@ -348,14 +365,7 @@ async function init() {
   }
   $("add-mic").onclick = () => { setSecondMic(true); $("mic-2").focus(); };
   $("remove-mic").onclick = () => { setSecondMic(false); $("add-mic").focus(); };
-  // highlight the sidebar entry of the section in view
-  const links = [...document.querySelectorAll(".nav-item")];
-  const spy = new IntersectionObserver((entries) => {
-    for (const en of entries) if (en.isIntersecting) {
-      links.forEach((a) => { const on = a.getAttribute("href") === "#" + en.target.id; a.classList.toggle("active", on); on ? a.setAttribute("aria-current", "true") : a.removeAttribute("aria-current"); });
-    }
-  }, { rootMargin: "-40% 0px -55% 0px" });
-  ["live", "mics", "recognition", "output"].forEach((id) => spy.observe($(id)));
+
   $("clear").onclick = async () => { if (S.sessionId) await api(`/api/captions/session/${S.sessionId}/clear`, { method: "POST" }); else renderer.reset(); };
   $("copy-link").onclick = (e) => copy($("overlay-link").href, e.target);
   $("copy-obs").onclick = (e) => copy($("overlay-link").href + "&theme=transparent&controls=0&hide=0", e.target);
