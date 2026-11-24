@@ -121,7 +121,7 @@ h3 { font-size: 1rem; font-weight: 700; margin: 1.75rem 0 .5rem; }
 #share:not([hidden]) + .output-empty { display: none; }
 .stack { display: grid; gap: .5rem; margin-top: 1rem; }
 .export { display: flex; gap: .5rem; }
-.export select { flex: 1; min-width: 0; }
+.export button { flex: 1; }
 
 /* fields */
 .field { display: grid; gap: .35rem; margin-top: 1.25rem; font-weight: 700; font-size: .95rem; }
@@ -133,23 +133,6 @@ select, textarea {
 }
 select:hover, textarea:hover { border-color: var(--ink); }
 textarea { resize: vertical; min-height: 6rem; }
-
-/* engine choice: a list with a rule between items, the chosen one marked by a bar */
-.engines { border: 0; padding: 0; margin: 0; border-top: 1px solid var(--rule); }
-.eng {
-  display: grid; grid-template-columns: auto 1fr; gap: .75rem; align-items: start;
-  padding: .85rem .75rem .85rem 1rem; border-bottom: 1px solid var(--rule); cursor: pointer;
-  position: relative;
-}
-.eng::before { content: ""; position: absolute; left: 0; top: -1px; bottom: -1px; width: 3px; background: transparent; }
-.eng:has(input:checked) { background: #f1f4f9; }
-.eng:has(input:checked)::before { background: var(--ink); }
-.eng:not(.disabled):hover { background: #f4f6f9; }
-.eng.disabled { cursor: not-allowed; }
-.eng.disabled b { color: var(--muted); }
-.eng input { margin: .3rem 0 0; accent-color: var(--ink); width: 1rem; height: 1rem; }
-.eng b { display: block; font-weight: 700; }
-.eng small { display: block; color: var(--muted); font-size: .875rem; margin-top: .1rem; }
 
 .check { display: grid; grid-template-columns: auto 1fr; gap: .75rem; align-items: start; margin-top: 1.5rem; font-weight: 700; cursor: pointer; }
 .check input { margin: .3rem 0 0; accent-color: var(--ink); width: 1rem; height: 1rem; }

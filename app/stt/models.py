@@ -165,11 +165,9 @@ class LocalModels:
         task.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)
 
     # ------------------------------------------------------------------ inference
-    async def transcribe(self, key: str, audio: np.ndarray, language: str | None, glossary: list[str]) -> str:
+    async def transcribe(self, key: str, audio: np.ndarray, language: str | None) -> str:
         engine = await self.ensure(key)
-        return await asyncio.get_running_loop().run_in_executor(
-            self._infer, engine.transcribe, audio, language, glossary
-        )
+        return await asyncio.get_running_loop().run_in_executor(self._infer, engine.transcribe, audio, language)
 
     def shutdown(self) -> None:
         self._infer.shutdown(wait=False, cancel_futures=True)

@@ -54,11 +54,10 @@
       <div class="desk">
         <section class="panel setup">
           <h2>Recognition</h2>
-          <fieldset id="engines" class="engines"><legend class="sr-only">Speech engine</legend></fieldset>
-          <label id="local-model-row" class="field">Local model
+          <label class="field">Speech model
             <select id="local-model"></select>
           </label>
-          <p id="engine-hint" class="hint"></p>
+          <p id="model-hint" class="hint"></p>
 
           <div class="pair">
             <label class="field">Spoken language
@@ -77,11 +76,6 @@
               <select id="mic"></select>
             </label>
           </div>
-
-          <label class="field">Glossary
-            <span class="hint">Names and terms the lecture uses, one per line. Improves spelling.</span>
-            <textarea id="glossary" rows="4" placeholder="Kubernetes&#10;Prof. Dr. Miller"></textarea>
-          </label>
 
           <label class="check"><input id="polish" type="checkbox" />
             <span>Tidy sentences with Claude
@@ -103,8 +97,7 @@
 
             <h3>Transcript</h3>
             <div class="export">
-              <select id="export-format" aria-label="Transcript format"><option value="txt">Plain text</option><option value="srt">SRT subtitles</option><option value="vtt">WebVTT</option><option value="json">JSON</option></select>
-              <button id="export" type="button" class="secondary">Download</button>
+              <button id="export" type="button" class="secondary">Download transcript (.txt)</button>
             </div>
 
             <button id="end" type="button" class="danger">End session</button>

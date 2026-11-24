@@ -1,4 +1,4 @@
-// Lecturer console: engine switch, on/off, microphone -> WebSocket, live preview.
+// Lecturer console: local model choice, on/off, microphone -> WebSocket, live preview.
 const $ = (id) => document.getElementById(id);
 const store = {
   get() { try { return JSON.parse(localStorage.getItem("cc-console") || "{}"); } catch { return {}; } },
@@ -12,13 +12,10 @@ const S = {
 const renderer = new CaptionFeed.Renderer($("caps"));
 
 function settings() {
-  const engine = document.querySelector('input[name="engine"]:checked')?.value || "local";
   return {
-    engine,
     local_model: $("local-model").value,
     language: $("language").value,
     polish: $("polish").checked,
-    glossary: $("glossary").value.split("\n").map((x) => x.trim()).filter(Boolean),
   };
 }
 
@@ -53,61 +50,32 @@ function notice(text, kind = "info") {
   g.textContent = text || "";
 }
 
-// ------------------------------------------------------------------ engines UI
-function renderEngines(info) {
-  const box = $("engines");
-  box.textContent = "";
+// ------------------------------------------------------------------ settings UI
+function renderSettings(info) {
   const saved = store.get();
   const d = info.defaults;
-  const wanted = saved.engine || d.engine;
-  for (const e of info.engines) {
-    if (e.id === "mistral" && !e.available) continue; // optional extra: only shown once MISTRAL_API_KEY is set
-    const label = document.createElement("label");
-    label.className = "eng" + (e.available ? "" : " disabled");
-    const input = Object.assign(document.createElement("input"), { type: "radio", name: "engine", value: e.id, disabled: !e.available });
-    input.checked = e.id === wanted && e.available;
-    const body = document.createElement("span");
-    const b = document.createElement("b"); b.textContent = e.label;
-    const s = document.createElement("small");
-    s.textContent = e.available ? e.privacy : `Not available: ${e.reason}`;
-    body.append(b, s);
-    label.append(input, body);
-    box.appendChild(label);
-  }
-  if (!box.querySelector("input:checked")) {
-    const first = box.querySelector("input:not(:disabled)");
-    if (first) first.checked = true;
-  }
   const sel = $("local-model");
   sel.textContent = "";
-  const local = info.engines.find((e) => e.id === "local");
-  for (const m of local.models) {
+  const models = info.models;
+  for (const m of models) {
     const o = document.createElement("option");
     o.value = m.id;
     o.disabled = !m.available;
     o.textContent = `${m.label} · ${m.size}` + (m.available ? "" : " (not installed)");
     sel.appendChild(o);
   }
-  sel.value = local.models.some((m) => m.id === (saved.local_model || d.local_model) && m.available) ? (saved.local_model || d.local_model) : (local.models.find((m) => m.available)?.id || "");
+  const wanted = saved.local_model || d.local_model;
+  sel.value = models.some((m) => m.id === wanted && m.available) ? wanted : (models.find((m) => m.available)?.id || "");
+  $("model-hint").textContent = sel.value ? info.privacy : "No local model installed: pip install -r requirements-local.txt";
   $("language").value = saved.language || d.language;
   $("polish").checked = !!(saved.polish ?? d.polish) && info.polish.available;
   $("polish").disabled = !info.polish.available;
   $("polish").closest("label").hidden = !info.polish.available; // optional extra: only shown once ANTHROPIC_API_KEY is set
   $("polish-hint").hidden = !info.polish.available;
   $("polish-hint").textContent = info.polish.available ? info.polish.privacy : `Not available: ${info.polish.reason}`;
-  $("glossary").value = (saved.glossary || d.glossary || []).join("\n");
-  updateEngineUi();
-}
-
-function updateEngineUi() {
-  const s = settings();
-  $("local-model-row").hidden = s.engine !== "local";
-  const e = S.info.engines.find((x) => x.id === s.engine);
-  $("engine-hint").textContent = "";
 }
 
 function onSettingsChange() {
-  updateEngineUi();
   const s = settings();
   store.set(s);
   if (!S.sessionId) return;
@@ -282,11 +250,10 @@ async function endSession() {
 }
 
 async function exportTranscript() {
-  const fmt = $("export-format").value;
-  const res = await api(`/api/captions/session/${S.sessionId}/transcript?format=${fmt}`);
+  const res = await api(`/api/captions/session/${S.sessionId}/transcript`);
   if (!res.ok) { notice(await errorMessage(res), "error"); return; }
   const blob = await res.blob();
-  const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `captions.${fmt}` });
+  const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: "captions.txt" });
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
@@ -301,15 +268,13 @@ async function init() {
   if (!res.ok) { notice(await errorMessage(res), "error"); return; }
   S.info = await res.json();
   if (S.info.auth_required && !secret.get()) secret.ask(false);
-  renderEngines(S.info);
+  renderSettings(S.info);
   $("app").hidden = false;
   if (navigator.mediaDevices?.enumerateDevices) listMics().catch(() => {});
   if (!navigator.mediaDevices?.getUserMedia) notice("This browser or connection does not allow microphone access (HTTPS or localhost required).", "error");
 
   $("power").onclick = () => (S.wantOn ? stop() : start());
   for (const id of ["language", "polish", "local-model"]) $(id).addEventListener("change", onSettingsChange);
-  $("engines").addEventListener("change", onSettingsChange);
-  $("glossary").addEventListener("input", onSettingsChange);
   $("mic").addEventListener("change", () => { store.set({ mic: $("mic").value }); if (S.wantOn) { closeMic(); openMic().catch((e) => notice(e.message, "error")); } });
   $("clear").onclick = async () => { if (S.sessionId) await api(`/api/captions/session/${S.sessionId}/clear`, { method: "POST" }); else renderer.reset(); };
   $("copy-link").onclick = (e) => copy($("overlay-link").href, e.target);

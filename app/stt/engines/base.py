@@ -9,6 +9,6 @@ import numpy as np
 class BatchEngine(Protocol):
     label: str
 
-    def transcribe(self, audio: np.ndarray, language: str | None, glossary: list[str]) -> str:
+    def transcribe(self, audio: np.ndarray, language: str | None) -> str:
         """Blocking. audio: float32 mono 16 kHz. Returns plain text (empty string for no speech)."""
         ...

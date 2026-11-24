@@ -12,11 +12,15 @@ def new_session(client, **settings):
     return r.json()["session_id"]
 
 
-def test_engines_listed_without_login_and_keys_never_leak(client):
+def test_only_local_models_are_offered_and_keys_never_leak(client):
     data = client.get("/api/captions/engines").json()
-    assert [e["id"] for e in data["engines"]] == ["local", "openai", "mistral"]
+    assert "engines" not in data
+    assert [m["id"] for m in data["models"]] == ["parakeet", "whisper-turbo", "whisper-small"]
+    assert "engine" not in data["defaults"] and "glossary" not in data["defaults"]
     assert data["polish"]["available"] is True
-    assert "test-openai-key" not in str(data) and "test-anthropic-key" not in str(data)
+    assert "test-anthropic-key" not in str(data)
+    text = str(data).lower()
+    assert "openai" not in text and "mistral" not in text
 
 
 def test_no_auth_routes_remain(client):
@@ -32,11 +36,12 @@ def test_pages_load(client):
 
 def test_session_settings_switch_and_validation(client):
     sid = new_session(client)
-    r = client.patch(f"/api/captions/session/{sid}/settings", json={"engine": "openai", "polish": True})
-    assert r.status_code == 200 and r.json()["settings"]["engine"] == "openai" and r.json()["settings"]["polish"] is True
+    r = client.patch(f"/api/captions/session/{sid}/settings", json={"polish": True})
+    assert r.status_code == 200 and r.json()["settings"]["polish"] is True
     assert client.patch(f"/api/captions/session/{sid}/settings", json={"language": "klingon!"}).status_code in (400, 422)
-    r = client.patch(f"/api/captions/session/{sid}/settings", json={"engine": "local", "local_model": "whisper-small"})
-    assert r.status_code == 200
+    r = client.patch(f"/api/captions/session/{sid}/settings", json={"local_model": "whisper-small"})
+    assert r.status_code == 200 and r.json()["settings"]["local_model"] == "whisper-small"
+    assert client.patch(f"/api/captions/session/{sid}/settings", json={"local_model": "gpt-4o"}).status_code == 422
     pub = client.get(f"/api/captions/session/{sid}")
     assert pub.status_code == 200 and "test-" not in pub.text
 
@@ -46,11 +51,26 @@ def test_unknown_session_is_404(client):
     assert client.post("/api/captions/session/nope/clear").status_code == 404
 
 
-def test_missing_key_marks_engine_unavailable(client, monkeypatch):
-    from app.core.config import get_settings
-    monkeypatch.setattr(get_settings(), "mistral_api_key", "", raising=False)
-    r = client.post("/api/captions/session", json={"settings": {"engine": "mistral"}})
-    assert r.status_code == 409
+def test_cloud_engines_and_glossary_are_gone(client):
+    """Only local models: an old client asking for a cloud engine or a glossary gets no cloud and no glossary."""
+    r = client.post("/api/captions/session", json={"settings": {"engine": "openai", "glossary": ["Kubernetes"]}})
+    assert r.status_code == 200
+    settings = r.json()["settings"]
+    assert "engine" not in settings and "glossary" not in settings
+    snap = client.get(f"/api/captions/session/{r.json()['session_id']}").json()
+    assert "engine" not in snap["settings"] and "glossary" not in snap["settings"]
+
+
+def test_transcript_is_plain_text_only(client):
+    sid = new_session(client)
+    r = client.get(f"/api/captions/session/{sid}/transcript")
+    assert r.status_code == 200 and r.headers["content-type"].startswith("text/plain")
+    assert r.headers["content-disposition"].endswith('untertitel.txt"')
+    # Old format links still get plain text, never VTT/SRT/JSON.
+    for fmt in ("vtt", "srt", "json"):
+        r = client.get(f"/api/captions/session/{sid}/transcript?format={fmt}")
+        assert r.status_code == 200 and r.headers["content-type"].startswith("text/plain")
+        assert "WEBVTT" not in r.text and "-->" not in r.text
 
 
 def test_ingest_streams_real_speech_to_listeners(client):

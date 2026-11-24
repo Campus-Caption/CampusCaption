@@ -92,8 +92,8 @@ class ParakeetEngine:
             provider="cpu",
         )
 
-    def transcribe(self, audio: np.ndarray, language: str | None, glossary: list[str]) -> str:
-        # Parakeet detects the language itself; the hint and glossary are not used.
+    def transcribe(self, audio: np.ndarray, language: str | None) -> str:
+        # Parakeet detects the language itself; the hint is not used.
         if len(audio) < MIN_SAMPLES:
             audio = np.pad(audio, (0, MIN_SAMPLES - len(audio)))
         stream = self._rec.create_stream()

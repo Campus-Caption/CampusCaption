@@ -14,10 +14,8 @@ from app.core.config import Settings
 from app.stt.audio import pcm16_to_float
 from app.stt.models import LOCAL_MODELS, LocalModels
 from app.stt.polish import ClaudePolisher
-from app.stt.recognizers import (
-    ChunkedRecognizer, MistralRealtimeRecognizer, OpenAIRealtimeRecognizer, Recognizer,
-)
-from app.stt.types import ENGINE_LABELS, SAMPLE_RATE, SessionSettings
+from app.stt.recognizers import ChunkedRecognizer, Recognizer
+from app.stt.types import SAMPLE_RATE, SessionSettings
 
 log = logging.getLogger("campuscaption.stt")
 
@@ -41,7 +39,7 @@ class Utterance:
     text: str
     raw: str
     polished: bool = False
-    engine: str = ""
+    model: str = ""
 
     def public(self) -> dict:
         return {"utterance": self.id, "text": self.text, "start": round(self.start, 2), "end": round(self.end, 2),
@@ -116,8 +114,7 @@ class CaptionSession:
 
     def public_settings(self) -> dict:
         s = self.settings
-        return {"engine": s.engine, "local_model": s.local_model, "language": s.language, "polish": s.polish,
-                "glossary": s.glossary}
+        return {"local_model": s.local_model, "language": s.language, "polish": s.polish}
 
     def snapshot(self) -> dict:
         return {"type": "snapshot", "session": self.id, "status": self.status, "settings": self.public_settings(),
@@ -125,7 +122,7 @@ class CaptionSession:
 
     def _set_status(self, state: str, message: str = "", progress: float | None = None) -> None:
         self.status = {"type": "status", "state": state, "message": message, "progress": progress,
-                       "engine": self.settings.engine}
+                       "model": self.settings.local_model}
         self.broadcast(self.status)
 
     def latest_text(self) -> str:
@@ -182,8 +179,7 @@ class CaptionSession:
             old = self.settings
             self.settings = new
             self.broadcast({"type": "settings", "settings": self.public_settings()})
-            changed = (old.engine, old.local_model, old.language, tuple(old.glossary)) != \
-                      (new.engine, new.local_model, new.language, tuple(new.glossary))
+            changed = (old.local_model, old.language) != (new.local_model, new.language)
             if self._rec is None or not changed:
                 return
             try:
@@ -191,7 +187,7 @@ class CaptionSession:
             except Exception:
                 self.settings = old  # keep the working engine running
                 self.broadcast({"type": "settings", "settings": self.public_settings()})
-                self._set_status("listening", "Switch failed, the previous engine keeps running.")
+                self._set_status("listening", "Switch failed, the previous model keeps running.")
                 raise
             previous, self._rec = self._rec, fresh
             await self._drain_pending()
@@ -226,8 +222,6 @@ class CaptionSession:
         return rec
 
     async def _track_loading(self) -> None:
-        if self.settings.engine != "local":
-            return
         key = self.settings.local_model
         while True:
             st = self.mgr.models.status(key)
@@ -236,24 +230,17 @@ class CaptionSession:
             await asyncio.sleep(0.8)
 
     async def _build(self) -> Recognizer:
-        s, cfg = self.settings, self.mgr.cfg
+        s = self.settings
         base = self._max_id
         emit = lambda ev: self._on_event(ev, base)  # noqa: E731
-        lang, gloss = s.language_hint, s.glossary
+        key, lang = s.local_model, s.language_hint
         self.mgr.check_engine(s)
-        if s.engine == "local":
-            key = s.local_model
-            await self.mgr.models.ensure(key)
+        await self.mgr.models.ensure(key)
 
-            async def transcribe(audio: np.ndarray) -> str:
-                return await self.mgr.models.transcribe(key, audio, lang, gloss)
+        async def transcribe(audio: np.ndarray) -> str:
+            return await self.mgr.models.transcribe(key, audio, lang)
 
-            return ChunkedRecognizer(emit, transcribe)
-        if s.engine == "openai":
-            return OpenAIRealtimeRecognizer(emit, api_key=cfg.openai_api_key, model=cfg.openai_stt_model,
-                                            language=lang, glossary=gloss)
-        return MistralRealtimeRecognizer(emit, api_key=cfg.mistral_api_key, model=cfg.mistral_stt_model,
-                                         language=lang, glossary=gloss, delay_ms=cfg.mistral_stt_delay_ms)
+        return ChunkedRecognizer(emit, transcribe)
 
     # ------------------------------------------------------------------ recogniser events
     def _on_event(self, ev: dict, base: int) -> None:
@@ -281,7 +268,7 @@ class CaptionSession:
                 return
             end = time.monotonic() - self.t0
             u = Utterance(gid, max(0.0, end - max(0.0, ev["end"] - ev["start"])), end, text, text,
-                          engine=self.settings.engine)
+                          model=self.settings.local_model)
             self.history.append(u)
             self.broadcast({"type": "final", **u.public(), "latency": ev.get("latency", 0.0)})
             if self.settings.polish and self.mgr.polisher is not None:
@@ -292,7 +279,7 @@ class CaptionSession:
         if polisher is None:
             return
         context = [x.text for x in list(self.history)[-4:-1]]
-        better = await polisher.polish(u.raw, context, self.settings.glossary)
+        better = await polisher.polish(u.raw, context)
         if better and better != u.text:
             u.text, u.polished = better, True
             self.broadcast({"type": "revise", "utterance": u.id, "text": better})
@@ -347,36 +334,20 @@ class SessionManager:
     # ------------------------------------------------------------------ engines
     def default_settings(self) -> SessionSettings:
         c = self.cfg
-        engine = c.stt_default_engine if c.stt_default_engine in ENGINE_LABELS else "local"
         model = c.stt_local_model if c.stt_local_model in LOCAL_MODELS else "parakeet"
         lang = c.stt_default_language if c.stt_default_language == "auto" or len(c.stt_default_language) == 2 else "auto"
-        return SessionSettings(engine=engine, local_model=model, language=lang)
+        return SessionSettings(local_model=model, language=lang)
 
     def check_engine(self, s: SessionSettings) -> None:
-        if s.engine == "local":
-            ok, reason = self.models.dependency(s.local_model)
-            if not ok:
-                raise EngineUnavailable(reason)
-        elif s.engine == "openai" and not self.cfg.openai_api_key:
-            raise EngineUnavailable("OPENAI_API_KEY is not set.")
-        elif s.engine == "mistral" and not self.cfg.mistral_api_key:
-            raise EngineUnavailable("MISTRAL_API_KEY is not set.")
+        ok, reason = self.models.dependency(s.local_model)
+        if not ok:
+            raise EngineUnavailable(reason)
 
     def engines(self) -> dict:
         c = self.cfg
-        local = [self.models.status(k) for k in LOCAL_MODELS]
         return {
-            "engines": [
-                {"id": "local", "label": ENGINE_LABELS["local"], "available": any(m["available"] for m in local),
-                 "reason": "" if any(m["available"] for m in local) else "pip install -r requirements-local.txt",
-                 "models": local, "privacy": "Audio never leaves this computer."},
-                {"id": "openai", "label": ENGINE_LABELS["openai"], "available": bool(c.openai_api_key),
-                 "reason": "" if c.openai_api_key else "OPENAI_API_KEY is missing", "model": c.openai_stt_model,
-                 "privacy": "Audio is sent to OpenAI."},
-                {"id": "mistral", "label": ENGINE_LABELS["mistral"], "available": bool(c.mistral_api_key),
-                 "reason": "" if c.mistral_api_key else "MISTRAL_API_KEY is missing", "model": c.mistral_stt_model,
-                 "privacy": "Audio is sent to Mistral (EU)."},
-            ],
+            "models": [self.models.status(k) for k in LOCAL_MODELS],
+            "privacy": "Audio never leaves this computer.",
             "polish": {"available": self.polisher is not None, "model": c.claude_model,
                        "reason": "" if self.polisher else "ANTHROPIC_API_KEY is missing",
                        "privacy": "Finished sentences (text only) are sent to Anthropic."},

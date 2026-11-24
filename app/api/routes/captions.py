@@ -5,7 +5,7 @@ import json
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, status
-from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi.responses import PlainTextResponse
 from pydantic import ValidationError
 
 from app.core.config import get_settings
@@ -90,8 +90,7 @@ async def start_session(body: SessionCreate | None = None, manager: SessionManag
         session = manager.create(settings)
     except TooManySessions:
         raise _http(429, "too_many_sessions", "Too many caption sessions are already running.")
-    if settings.engine == "local":
-        manager.models.warm(settings.local_model)
+    manager.models.warm(settings.local_model)
     return _out(session)
 
 
@@ -141,16 +140,10 @@ def latest_caption(session_id: str, manager: SessionManager = Depends(get_manage
 
 
 @router.get("/session/{session_id}/transcript")
-def transcript(session_id: str, format: str = "txt", s: CaptionSession = Depends(owned_session)):
-    items = s.transcript()
-    if format == "json":
-        return JSONResponse(items)
-    if format not in ("txt", "vtt", "srt"):
-        raise _http(422, "bad_format", "Format: txt, vtt, srt oder json.")
-    body = {"txt": export.to_txt, "vtt": export.to_vtt, "srt": export.to_srt}[format](items)
-    media = "text/vtt" if format == "vtt" else "text/plain"
-    return PlainTextResponse(body, media_type=media + "; charset=utf-8",
-                             headers={"Content-Disposition": f'attachment; filename="untertitel.{format}"'})
+def transcript(s: CaptionSession = Depends(owned_session)):
+    """The transcript as plain text, one sentence per line."""
+    return PlainTextResponse(export.to_txt(s.transcript()), media_type="text/plain; charset=utf-8",
+                             headers={"Content-Disposition": 'attachment; filename="untertitel.txt"'})
 
 
 # --------------------------------------------------------------------------- websockets
