@@ -10,8 +10,11 @@ class Settings(BaseSettings):
     app_name: str = "CampusCaption"
     environment: str = "development"  # development | production
 
+    # Shared secret for the lecturer controls (start / settings / clear / end / export / microphone stream).
+    # Empty = no protection, fine on 127.0.0.1 only. Set it whenever other people can reach the server.
+    lecturer_secret: str = ""
+
     # --- Live captions / speech-to-text ---------------------------------------
-    stt_default_engine: str = "local"          # local | openai | mistral
     stt_local_model: str = "parakeet"          # parakeet | whisper-turbo | whisper-small
     stt_default_language: str = "de"         # auto | de | en | ...
     stt_model_dir: str = "./data/models"       # downloaded model files live here (mount as a volume in Docker)
@@ -20,11 +23,6 @@ class Settings(BaseSettings):
     stt_preload: bool = True                   # load the default local model at startup
     stt_max_sessions: int = 4                  # simultaneously open caption sessions
     stt_session_retention_hours: int = 12      # how long a finished session stays readable
-    openai_api_key: str = ""                   # enables "Cloud Whisper (OpenAI)"
-    openai_stt_model: str = "gpt-realtime-whisper"
-    mistral_api_key: str = ""                  # enables "Cloud Voxtral (Mistral)"
-    mistral_stt_model: str = "voxtral-mini-transcribe-realtime-3"
-    mistral_stt_delay_ms: int = 480            # 80-1200 or 2400: lower = faster, higher = more accurate
     anthropic_api_key: str = ""                # enables the optional Claude clean-up of captions
     claude_model: str = "claude-haiku-5-5"
 

@@ -1,4 +1,4 @@
-# Local (offline) speech recognition. Optional: only needed for the "Local" engine.
+# Local (offline) speech recognition: the only engine, so install this to caption anything.
 -r requirements.txt
 sherpa-onnx>=1.10.30      # Parakeet TDT v3 (default, fast on CPU)
 faster-whisper>=1.1.0     # Whisper large-v3-turbo / small

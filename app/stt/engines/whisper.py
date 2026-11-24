@@ -118,10 +118,9 @@ class WhisperEngine:
         if "error" in result:
             raise result["error"]
 
-    def transcribe(self, audio: np.ndarray, language: str | None, glossary: list[str]) -> str:
+    def transcribe(self, audio: np.ndarray, language: str | None) -> str:
         if len(audio) < MIN_SAMPLES:
             audio = np.pad(audio, (0, MIN_SAMPLES - len(audio)))
-        prompt = ("Glossary: " + ", ".join(glossary) + ".") if glossary else None
         segments, _ = self._model.transcribe(
             audio.astype(np.float32, copy=False),
             language=language,
@@ -130,6 +129,5 @@ class WhisperEngine:
             condition_on_previous_text=False,
             without_timestamps=True,
             vad_filter=False,  # we already cut on speech
-            initial_prompt=prompt,
         )
         return " ".join(s.text.strip() for s in segments if s.no_speech_prob < 0.6).strip()

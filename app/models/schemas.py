@@ -16,11 +16,10 @@ class SessionCreate(BaseModel):
 class SettingsPatch(BaseModel):
     """Partial update: only the fields that are sent change."""
 
-    engine: str | None = None
     local_model: str | None = None
     language: str | None = Field(None, pattern=r"^(auto|[a-z]{2})$")
     polish: bool | None = None
-    glossary: list[str] | None = None
+    speakers: list[str] | None = None
 
 
 class CaptionChunk(BaseModel):

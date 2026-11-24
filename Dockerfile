@@ -5,11 +5,9 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-# WITH_LOCAL=1 also installs the offline speech models' runtimes (larger image).
-ARG WITH_LOCAL=1
+# Speech recognition runs only on local models, so their runtimes are always installed.
 COPY requirements.txt requirements-local.txt ./
-RUN if [ "$WITH_LOCAL" = "1" ]; then pip install --no-cache-dir -r requirements-local.txt; \
-    else pip install --no-cache-dir -r requirements.txt; fi
+RUN pip install --no-cache-dir -r requirements-local.txt
 
 COPY app ./app
 COPY frontend ./frontend

@@ -1,9 +1,8 @@
 """Stream a WAV file through the real caption pipeline and report text, latency and speed.
 
-    python scripts/stt_smoke.py path/to/audio.wav [--engine local|openai|mistral] [--model parakeet]
-                                [--language de] [--polish] [--realtime]
+    python scripts/stt_smoke.py path/to/audio.wav [--model parakeet] [--language de] [--polish] [--realtime]
 
-Use this on your own machine to check that an engine works end to end (model download, API keys, network)
+Use this on your own machine to check that a local model works end to end (download, load, speed)
 before a lecture. --realtime paces the audio like a live microphone; without it the file is fed as fast as
 the engine can take it, which measures raw speed.
 """
@@ -35,7 +34,6 @@ def load_wav(path: str) -> np.ndarray:
 async def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("wav")
-    ap.add_argument("--engine", default="local", choices=["local", "openai", "mistral"])
     ap.add_argument("--model", default=None, help="local model: parakeet | whisper-turbo | whisper-small")
     ap.add_argument("--language", default="auto")
     ap.add_argument("--polish", action="store_true")
@@ -45,11 +43,11 @@ async def main() -> int:
     cfg = get_settings()
     mgr = SessionManager(cfg)
     mgr.start()
-    s = SessionSettings(engine=a.engine, local_model=a.model or cfg.stt_local_model, language=a.language, polish=a.polish)
+    s = SessionSettings(local_model=a.model or cfg.stt_local_model, language=a.language, polish=a.polish)
     try:
         mgr.check_engine(s)
     except Exception as exc:
-        print("Engine not available:", exc)
+        print("Model not available:", exc)
         return 2
     session = mgr.create(s)
     sub = session.subscribe()
@@ -57,7 +55,7 @@ async def main() -> int:
     seconds = len(audio) / 16000
 
     t0 = time.monotonic()
-    print(f"Starting {a.engine} ({s.local_model if a.engine == 'local' else ''}) – first run downloads the model…")
+    print(f"Starting {s.local_model} – first run downloads the model…")
     await session.begin()
     print(f"ready after {time.monotonic() - t0:.1f}s")
     t1 = time.monotonic()

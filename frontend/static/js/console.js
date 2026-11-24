@@ -1,4 +1,4 @@
-// Lecturer console: engine switch, on/off, microphone -> WebSocket, live preview.
+// Lecturer console: local model choice, on/off, one or two microphones -> WebSocket (one per mic), live preview.
 const $ = (id) => document.getElementById(id);
 const store = {
   get() { try { return JSON.parse(localStorage.getItem("cc-console") || "{}"); } catch { return {}; } },
@@ -6,20 +6,45 @@ const store = {
 };
 
 const S = {
-  info: null, sessionId: null, feed: null, ws: null, ctx: null, stream: null, node: null,
-  running: false, wantOn: false, retry: 0, pingTimer: null, state: "idle", patchTimer: null,
+  info: null, sessionId: null, feed: null,
+  running: false, wantOn: false, state: "idle", patchTimer: null,
+  // one entry per microphone: stream, audio graph, ingest socket
+  mics: { 1: { n: 1, retry: 0, stats: null }, 2: { n: 2, retry: 0, stats: null } },
 };
+const MIC_DEFAULT_LABELS = ["Lecturer", "Audience"];
 const renderer = new CaptionFeed.Renderer($("caps"));
 
 function settings() {
-  const engine = document.querySelector('input[name="engine"]:checked')?.value || "local";
   return {
-    engine,
     local_model: $("local-model").value,
     language: $("language").value,
     polish: $("polish").checked,
-    glossary: $("glossary").value.split("\n").map((x) => x.trim()).filter(Boolean),
+    speakers: [1, 2].map((n) => $(`label-${n}`).value.trim() || MIC_DEFAULT_LABELS[n - 1]),
   };
+}
+
+// ------------------------------------------------------------------ lecturer secret
+// Kept in sessionStorage only (gone when the tab closes), sent as a header on every control request.
+const secret = {
+  get() { try { return sessionStorage.getItem("cc-secret") || ""; } catch { return ""; } },
+  set(v) { try { v ? sessionStorage.setItem("cc-secret", v) : sessionStorage.removeItem("cc-secret"); } catch {} },
+  ask(again) {
+    const v = prompt(again ? "Wrong lecturer password. Try again:" : "Lecturer password (LECTURER_SECRET on the server):");
+    if (v === null) return false;
+    secret.set(v.trim());
+    return true;
+  },
+};
+
+// fetch() for control endpoints: adds the secret and, on 401, asks for it and retries.
+async function api(url, opts = {}) {
+  for (let attempt = 0; ; attempt++) {
+    const headers = { ...(opts.headers || {}) };
+    const s = secret.get();
+    if (s) headers["X-Lecturer-Secret"] = s;
+    const res = await fetch(url, { ...opts, headers });
+    if (res.status !== 401 || attempt >= 3 || !secret.ask(attempt > 0 || !!s)) return res;
+  }
 }
 
 function notice(text, kind = "info") {
@@ -29,67 +54,41 @@ function notice(text, kind = "info") {
   g.textContent = text || "";
 }
 
-// ------------------------------------------------------------------ engines UI
-function renderEngines(info) {
-  const box = $("engines");
-  box.textContent = "";
+// ------------------------------------------------------------------ settings UI
+function renderSettings(info) {
   const saved = store.get();
   const d = info.defaults;
-  const wanted = saved.engine || d.engine;
-  for (const e of info.engines) {
-    if (e.id === "mistral" && !e.available) continue; // optional extra: only shown once MISTRAL_API_KEY is set
-    const label = document.createElement("label");
-    label.className = "eng" + (e.available ? "" : " disabled");
-    const input = Object.assign(document.createElement("input"), { type: "radio", name: "engine", value: e.id, disabled: !e.available });
-    input.checked = e.id === wanted && e.available;
-    const body = document.createElement("span");
-    const b = document.createElement("b"); b.textContent = e.label;
-    const s = document.createElement("small");
-    s.textContent = e.available ? e.privacy : `Not available: ${e.reason}`;
-    body.append(b, s);
-    label.append(input, body);
-    box.appendChild(label);
-  }
-  if (!box.querySelector("input:checked")) {
-    const first = box.querySelector("input:not(:disabled)");
-    if (first) first.checked = true;
-  }
   const sel = $("local-model");
   sel.textContent = "";
-  const local = info.engines.find((e) => e.id === "local");
-  for (const m of local.models) {
+  const models = info.models;
+  for (const m of models) {
     const o = document.createElement("option");
     o.value = m.id;
     o.disabled = !m.available;
     o.textContent = `${m.label} · ${m.size}` + (m.available ? "" : " (not installed)");
     sel.appendChild(o);
   }
-  sel.value = local.models.some((m) => m.id === (saved.local_model || d.local_model) && m.available) ? (saved.local_model || d.local_model) : (local.models.find((m) => m.available)?.id || "");
+  const wanted = saved.local_model || d.local_model;
+  sel.value = models.some((m) => m.id === wanted && m.available) ? wanted : (models.find((m) => m.available)?.id || "");
+  $("model-hint").textContent = sel.value ? info.privacy : "No local model installed: pip install -r requirements-local.txt";
   $("language").value = saved.language || d.language;
+  const labels = saved.speakers || d.speakers || MIC_DEFAULT_LABELS;
+  [1, 2].forEach((n) => ($(`label-${n}`).value = labels[n - 1] || MIC_DEFAULT_LABELS[n - 1]));
+  setSecondMic(!!saved.mic2On, false);
   $("polish").checked = !!(saved.polish ?? d.polish) && info.polish.available;
   $("polish").disabled = !info.polish.available;
   $("polish").closest("label").hidden = !info.polish.available; // optional extra: only shown once ANTHROPIC_API_KEY is set
   $("polish-hint").hidden = !info.polish.available;
   $("polish-hint").textContent = info.polish.available ? info.polish.privacy : `Not available: ${info.polish.reason}`;
-  $("glossary").value = (saved.glossary || d.glossary || []).join("\n");
-  updateEngineUi();
-}
-
-function updateEngineUi() {
-  const s = settings();
-  $("local-model-row").hidden = s.engine !== "local";
-  const e = S.info.engines.find((x) => x.id === s.engine);
-  $("engine-hint").textContent = "";
 }
 
 function onSettingsChange() {
-  updateEngineUi();
   const s = settings();
   store.set(s);
   if (!S.sessionId) return;
   clearTimeout(S.patchTimer);
   S.patchTimer = setTimeout(async () => {
-    const res = await fetch(`/api/captions/session/${S.sessionId}/settings`, {
+    const res = await api(`/api/captions/session/${S.sessionId}/settings`, {
       method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(s),
     });
     if (!res.ok) notice(await errorMessage(res), "error");
@@ -105,7 +104,7 @@ async function errorMessage(res) {
 // ------------------------------------------------------------------ session + feed
 async function ensureSession() {
   if (S.sessionId) return true;
-  const res = await fetch("/api/captions/session", {
+  const res = await api("/api/captions/session", {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ settings: settings() }),
   });
   if (!res.ok) { notice(await errorMessage(res), "error"); return false; }
@@ -129,6 +128,8 @@ function setState(st) {
   S.state = st.state;
   const names = { idle: "Ready", loading: "Loading model…", listening: "Live", error: "Error" };
   $("state-text").textContent = S.wantOn || st.state !== "idle" ? (names[st.state] || st.state) : "Off";
+  const tags = { idle: "Ready when you are", loading: "Getting ready", listening: "Live now", error: "Needs attention" };
+  $("hero-tag-text").textContent = S.wantOn ? (tags[st.state] || st.state) : "Ready when you are";
   $("state-detail").textContent = st.message || "";
   const p = $("progress");
   p.hidden = !(st.state === "loading" && typeof st.progress === "number" && st.progress > 0);
@@ -142,77 +143,137 @@ function setState(st) {
   document.body.dataset.state = !S.wantOn ? "off" : st.state === "listening" ? "live" : st.state === "loading" ? "loading" : st.state === "error" ? "error" : "off";
 }
 
-// ------------------------------------------------------------------ microphone + ingest
+// ------------------------------------------------------------------ microphones + ingest
+// Each microphone gets its own audio graph and its own ingest socket (?mic=1 / ?mic=2), so the server runs one
+// recognizer per mic and labels the captions with that mic's speaker name.
+const secondMicOn = () => !$("mic-row-2").hidden;
+const activeMics = () => (secondMicOn() ? [1, 2] : [1]);
+
 async function listMics() {
-  const sel = $("mic");
   const devices = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "audioinput");
-  const keep = sel.value || store.get().mic || "";
-  sel.textContent = "";
-  sel.appendChild(Object.assign(document.createElement("option"), { value: "", textContent: "Default microphone" }));
-  devices.forEach((d, i) => sel.appendChild(Object.assign(document.createElement("option"), { value: d.deviceId, textContent: d.label || `Microphone ${i + 1}` })));
-  sel.value = devices.some((d) => d.deviceId === keep) ? keep : "";
+  const saved = store.get();
+  for (const n of [1, 2]) {
+    const sel = $(`mic-${n}`);
+    const keep = sel.value || saved[`mic${n}`] || (n === 1 ? saved.mic : "") || "";
+    sel.textContent = "";
+    sel.appendChild(Object.assign(document.createElement("option"), { value: "", textContent: "Default microphone" }));
+    devices.forEach((d, i) => sel.appendChild(Object.assign(document.createElement("option"), { value: d.deviceId, textContent: d.label || `Microphone ${i + 1}` })));
+    sel.value = devices.some((d) => d.deviceId === keep) ? keep : "";
+  }
+  checkSameDevice();
 }
 
-async function openMic() {
-  S.stream = await navigator.mediaDevices.getUserMedia({
-    audio: { deviceId: $("mic").value ? { exact: $("mic").value } : undefined, channelCount: 1, echoCancellation: false, noiseSuppression: true, autoGainControl: true },
+function checkSameDevice() {
+  const same = secondMicOn() && $("mic-1").value === $("mic-2").value;
+  $("mic-hint").textContent = same ? "Both rows use the same microphone. Pick a different device for microphone 2." : "";
+}
+
+function setSecondMic(on, live = true) {
+  $("mic-row-2").hidden = !on;
+  $("add-mic").hidden = on;
+  store.set({ mic2On: on });
+  checkSameDevice();
+  if (!live || !S.wantOn) return;
+  if (on) startMic(2).catch((e) => notice("Microphone 2: " + micError(e), "error"));
+  else stopMic(2);
+}
+
+function micError(e) {
+  return e.name === "NotAllowedError" ? "Microphone access was denied. Please allow it in the browser." : (e.message || String(e));
+}
+
+async function openMic(n) {
+  const m = S.mics[n];
+  const dev = $(`mic-${n}`).value;
+  m.stream = await navigator.mediaDevices.getUserMedia({
+    audio: { deviceId: dev ? { exact: dev } : undefined, channelCount: 1, echoCancellation: false, noiseSuppression: true, autoGainControl: true },
   });
   await listMics();
-  S.ctx = new AudioContext({ latencyHint: "interactive" });
-  await S.ctx.audioWorklet.addModule("/static/js/pcm-worklet.js");
-  const src = S.ctx.createMediaStreamSource(S.stream);
-  S.node = new AudioWorkletNode(S.ctx, "pcm-processor");
-  const mute = S.ctx.createGain(); mute.gain.value = 0;
-  src.connect(S.node).connect(mute).connect(S.ctx.destination);
-  S.node.port.onmessage = (m) => {
-    const lvl = Math.min(1, m.data.level * 6);
-    $("meter").style.width = Math.round(lvl * 100) + "%";
-    if (S.ws && S.ws.readyState === WebSocket.OPEN && S.ingestReady) S.ws.send(m.data.pcm);
+  m.ctx = new AudioContext({ latencyHint: "interactive" });
+  await m.ctx.audioWorklet.addModule("/static/js/pcm-worklet.js");
+  const src = m.ctx.createMediaStreamSource(m.stream);
+  m.node = new AudioWorkletNode(m.ctx, "pcm-processor");
+  const mute = m.ctx.createGain(); mute.gain.value = 0;
+  src.connect(m.node).connect(mute).connect(m.ctx.destination);
+  m.node.port.onmessage = (ev) => {
+    $(`meter-${n}`).style.width = Math.round(Math.min(1, ev.data.level * 6) * 100) + "%";
+    if (m.ws && m.ws.readyState === WebSocket.OPEN && m.ready) m.ws.send(ev.data.pcm);
   };
-  S.stream.getAudioTracks()[0].addEventListener("ended", () => { if (S.wantOn) { notice("The microphone was disconnected.", "error"); stop(); } });
+  m.stream.getAudioTracks()[0].addEventListener("ended", () => {
+    if (!S.wantOn || S.mics[n].stream !== m.stream) return;
+    notice(`Microphone ${n} was disconnected.`, "error");
+    if (n === 1) stop(); else stopMic(2);
+  });
 }
 
-function closeMic() {
-  S.stream?.getTracks().forEach((t) => t.stop());
-  S.node?.disconnect();
-  S.ctx?.close().catch(() => {});
-  S.stream = S.node = S.ctx = null;
-  $("meter").style.width = "0";
+function closeMic(n) {
+  const m = S.mics[n];
+  m.stream?.getTracks().forEach((t) => t.stop());
+  m.node?.disconnect();
+  m.ctx?.close().catch(() => {});
+  m.stream = m.node = m.ctx = null;
+  $(`meter-${n}`).style.width = "0";
 }
 
-async function openIngest() {
+async function openIngest(n) {
+  const m = S.mics[n];
   const proto = location.protocol === "https:" ? "wss" : "ws";
-  S.ingestReady = false;
-  const ws = new WebSocket(`${proto}://${location.host}/api/captions/ws/ingest/${S.sessionId}`);
-  S.ws = ws;
+  m.ready = false;
+  const ws = new WebSocket(`${proto}://${location.host}/api/captions/ws/ingest/${S.sessionId}?mic=${n}`);
+  m.ws = ws;
   ws.binaryType = "arraybuffer";
-  ws.onmessage = (m) => {
-    const ev = JSON.parse(m.data);
-    if (ev.type === "ready") { S.ingestReady = true; S.retry = 0; ws.send(JSON.stringify({ type: "start" })); }
+  ws.onopen = () => ws.send(JSON.stringify({ type: "auth", secret: secret.get() }));
+  ws.onmessage = (msg) => {
+    const ev = JSON.parse(msg.data);
+    if (ev.type === "ready") { m.ready = true; m.retry = 0; ws.send(JSON.stringify({ type: "start" })); }
     else if (ev.type === "start_failed") { notice(ev.message, "error"); stop(); }
-    else if (ev.type === "pong") showStats(ev.stats);
+    else if (ev.type === "pong") { m.stats = ev.stats; showStats(); }
   };
   ws.onclose = (e) => {
-    S.ingestReady = false;
-    if (!S.wantOn || S.ws !== ws) return;
-    if (e.code === 4409) { notice("This session is already running in another window.", "error"); stop(); return; }
+    m.ready = false;
+    if (!S.wantOn || m.ws !== ws) return;
+    if (e.code === 4401) {
+      if (secret.ask(true)) { setTimeout(() => S.wantOn && openIngest(n), 0); return; }
+      notice("Lecturer password required.", "error"); stop(); return;
+    }
+    if (e.code === 4409) { notice(`Microphone ${n} of this session is already running in another window.`, "error"); stop(); return; }
     if (e.code === 4404) { notice("The session no longer exists. Please start again.", "error"); S.sessionId = null; stop(); return; }
-    S.retry += 1;
-    if (S.retry > 8) { notice("Lost connection to the server.", "error"); stop(); return; }
+    m.retry += 1;
+    if (m.retry > 8) { notice("Lost connection to the server.", "error"); stop(); return; }
     $("state-detail").textContent = "Reconnecting…";
-    setTimeout(() => S.wantOn && openIngest(), Math.min(500 * 2 ** S.retry, 8000));
+    setTimeout(() => S.wantOn && m.ws === ws && openIngest(n), Math.min(500 * 2 ** m.retry, 8000));
   };
-  clearInterval(S.pingTimer);
-  S.pingTimer = setInterval(() => ws.readyState === 1 && ws.send(JSON.stringify({ type: "ping" })), 4000);
+  clearInterval(m.pingTimer);
+  m.pingTimer = setInterval(() => ws.readyState === 1 && ws.send(JSON.stringify({ type: "ping" })), 4000);
 }
 
-function showStats(st) {
-  if (!st) return;
+async function startMic(n) {
+  await openMic(n);
+  await openIngest(n);
+}
+
+function stopMic(n) {
+  const m = S.mics[n];
+  clearInterval(m.pingTimer);
+  if (m.ws && m.ws.readyState === 1) m.ws.send(JSON.stringify({ type: "stop" }));
+  const ws = m.ws; m.ws = null; m.ready = false; m.stats = null;
+  setTimeout(() => ws && ws.close(), 400);
+  closeMic(n);
+  showStats();
+}
+
+function showStats() {
   const parts = [];
-  if (st.avg_final_latency != null) parts.push(`Avg. delay ${st.avg_final_latency} s`);
-  if (st.utterances != null) parts.push(`${st.utterances} sentences`);
-  if (st.backlog) parts.push(`Backlog ${st.backlog}`);
-  if (st.backlog >= 3) parts.push("⚠ This model is too slow for real time on this computer – choose Parakeet, or use the GPU.");
+  for (const n of activeMics()) {
+    const st = S.mics[n].stats;
+    if (!st) continue;
+    const p = [];
+    if (st.avg_final_latency != null) p.push(`delay ${st.avg_final_latency} s`);
+    if (st.utterances != null) p.push(`${st.utterances} sentences`);
+    if (st.backlog) p.push(`backlog ${st.backlog}`);
+    if (p.length) parts.push((secondMicOn() ? `Mic ${n}: ` : "") + p.join(", "));
+    if (st.backlog >= 3) parts.push("⚠ This model is too slow for real time on this computer – choose Parakeet, or use the GPU.");
+  }
   $("stats").textContent = parts.join(" · ");
 }
 
@@ -223,11 +284,11 @@ async function start() {
   setState({ state: "loading", message: "Opening microphone…" });
   try {
     if (!(await ensureSession())) { S.wantOn = false; setState({ state: "idle" }); return; }
-    await openMic();
+    for (const n of activeMics()) await openMic(n); // ask for every mic before streaming any
     S.running = true;
-    await openIngest();
+    for (const n of activeMics()) await openIngest(n);
   } catch (e) {
-    notice(e.name === "NotAllowedError" ? "Microphone access was denied. Please allow it in the browser." : "Start failed: " + (e.message || e), "error");
+    notice("Start failed: " + micError(e), "error");
     stop();
   }
 }
@@ -235,11 +296,7 @@ async function start() {
 function stop() {
   S.wantOn = false;
   S.running = false;
-  clearInterval(S.pingTimer);
-  if (S.ws && S.ws.readyState === 1) S.ws.send(JSON.stringify({ type: "stop" }));
-  const ws = S.ws; S.ws = null;
-  setTimeout(() => ws && ws.close(), 400);
-  closeMic();
+  [1, 2].forEach(stopMic);
   setState({ state: "idle", message: "" });
 }
 
@@ -247,17 +304,16 @@ function stop() {
 async function endSession() {
   if (!S.sessionId || !confirm("End this session? The caption screen will disconnect and the transcript will be gone.")) return;
   stop();
-  await fetch(`/api/captions/session/${S.sessionId}`, { method: "DELETE" });
+  await api(`/api/captions/session/${S.sessionId}`, { method: "DELETE" });
   S.feed?.close(); S.feed = null; S.sessionId = null;
   renderer.reset(); $("share").hidden = true; $("stats").textContent = "";
 }
 
 async function exportTranscript() {
-  const fmt = $("export-format").value;
-  const res = await fetch(`/api/captions/session/${S.sessionId}/transcript?format=${fmt}`);
+  const res = await api(`/api/captions/session/${S.sessionId}/transcript`);
   if (!res.ok) { notice(await errorMessage(res), "error"); return; }
   const blob = await res.blob();
-  const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `captions.${fmt}` });
+  const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: "captions.txt" });
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
@@ -271,17 +327,36 @@ async function init() {
   const res = await fetch("/api/captions/engines");
   if (!res.ok) { notice(await errorMessage(res), "error"); return; }
   S.info = await res.json();
-  renderEngines(S.info);
+  if (S.info.auth_required && !secret.get()) secret.ask(false);
+  renderSettings(S.info);
   $("app").hidden = false;
   if (navigator.mediaDevices?.enumerateDevices) listMics().catch(() => {});
   if (!navigator.mediaDevices?.getUserMedia) notice("This browser or connection does not allow microphone access (HTTPS or localhost required).", "error");
 
   $("power").onclick = () => (S.wantOn ? stop() : start());
   for (const id of ["language", "polish", "local-model"]) $(id).addEventListener("change", onSettingsChange);
-  $("engines").addEventListener("change", onSettingsChange);
-  $("glossary").addEventListener("input", onSettingsChange);
-  $("mic").addEventListener("change", () => { store.set({ mic: $("mic").value }); if (S.wantOn) { closeMic(); openMic().catch((e) => notice(e.message, "error")); } });
-  $("clear").onclick = async () => { if (S.sessionId) await fetch(`/api/captions/session/${S.sessionId}/clear`, { method: "POST" }); else renderer.reset(); };
+  for (const n of [1, 2]) {
+    $(`mic-${n}`).addEventListener("change", async () => {
+      store.set({ [`mic${n}`]: $(`mic-${n}`).value });
+      checkSameDevice();
+      if (S.wantOn && (n === 1 || secondMicOn())) {
+        closeMic(n);
+        openMic(n).catch((e) => notice(`Microphone ${n}: ` + micError(e), "error"));
+      }
+    });
+    $(`label-${n}`).addEventListener("input", onSettingsChange);
+  }
+  $("add-mic").onclick = () => { setSecondMic(true); $("mic-2").focus(); };
+  $("remove-mic").onclick = () => { setSecondMic(false); $("add-mic").focus(); };
+  // highlight the sidebar entry of the section in view
+  const links = [...document.querySelectorAll(".nav-item")];
+  const spy = new IntersectionObserver((entries) => {
+    for (const en of entries) if (en.isIntersecting) {
+      links.forEach((a) => { const on = a.getAttribute("href") === "#" + en.target.id; a.classList.toggle("active", on); on ? a.setAttribute("aria-current", "true") : a.removeAttribute("aria-current"); });
+    }
+  }, { rootMargin: "-40% 0px -55% 0px" });
+  ["live", "mics", "recognition", "output"].forEach((id) => spy.observe($(id)));
+  $("clear").onclick = async () => { if (S.sessionId) await api(`/api/captions/session/${S.sessionId}/clear`, { method: "POST" }); else renderer.reset(); };
   $("copy-link").onclick = (e) => copy($("overlay-link").href, e.target);
   $("copy-obs").onclick = (e) => copy($("overlay-link").href + "&theme=transparent&controls=0&hide=0", e.target);
   $("export").onclick = exportTranscript;

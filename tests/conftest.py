@@ -10,8 +10,6 @@ os.chdir(ROOT)
 # Settings must exist before the app is imported.
 os.environ.update({
     "STT_MODEL_DIR": os.path.join(tempfile.gettempdir(), "campuscaption-test-models"),
-    "OPENAI_API_KEY": "test-openai-key",
-    "MISTRAL_API_KEY": "test-mistral-key",
     "ANTHROPIC_API_KEY": "test-anthropic-key",
 })
 

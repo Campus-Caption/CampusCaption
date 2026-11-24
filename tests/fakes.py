@@ -14,7 +14,7 @@ class FakeEngine:
         self.calls = 0
         self.language = None
 
-    def transcribe(self, audio: np.ndarray, language, glossary) -> str:
+    def transcribe(self, audio: np.ndarray, language) -> str:
         import time
 
         self.calls += 1

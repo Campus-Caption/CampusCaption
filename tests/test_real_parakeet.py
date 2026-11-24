@@ -23,5 +23,5 @@ def test_parakeet_transcribes_english_sample():
     eng = ParakeetEngine(MODEL, 2)
     with wave.open(str(SPEECH)) as w:
         audio = np.frombuffer(w.readframes(w.getnframes()), dtype="<i2").astype(np.float32) / 32768
-    text = eng.transcribe(audio, None, []).lower()
+    text = eng.transcribe(audio, None).lower()
     assert "quick brown fox" in text and "caption" in text
