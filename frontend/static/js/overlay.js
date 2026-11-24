@@ -1,5 +1,5 @@
-// Overlay for the beamer / OBS / students' second screen.
-// ?session=ID  (required)  &size=40  &lines=3  &theme=dark|light|contrast|green|transparent
+// Caption screen for the projector / students' second screen.
+// ?session=ID  (required)  &size=40  &lines=3  &theme=dark|light|contrast
 // &controls=0 (hide the buttons)  &hide=8 (fade out after N s without speech, 0 = never)  &off=1 (start hidden)
 const q = new URLSearchParams(location.search);
 const sid = q.get("session");
@@ -7,7 +7,7 @@ const stage = document.getElementById("stage");
 const capsEl = document.getElementById("caps");
 const hint = document.getElementById("hint");
 const renderer = new CaptionFeed.Renderer(capsEl);
-const THEMES = [["dark", "Dark"], ["light", "Light"], ["contrast", "Contrast"], ["green", "Green (OBS)"], ["transparent", "Transparent"]];
+const THEMES = [["dark", "Dark"], ["light", "Light"], ["contrast", "Contrast"]];
 const LINES = [1, 2, 3, 4, 5];
 
 let prefs = { size: 40, lines: 3, theme: "dark", on: true };
@@ -15,6 +15,7 @@ try { Object.assign(prefs, JSON.parse(localStorage.getItem("cc-overlay") || "{}"
 if (q.get("size")) prefs.size = Math.max(16, Math.min(160, +q.get("size") || 40));
 if (q.get("lines")) prefs.lines = Math.max(1, Math.min(6, +q.get("lines") || 3));
 if (q.get("theme") && THEMES.some(([k]) => k === q.get("theme"))) prefs.theme = q.get("theme");
+if (!THEMES.some(([k]) => k === prefs.theme)) prefs.theme = "dark"; // e.g. a removed theme saved in this browser
 if (q.get("off") === "1") prefs.on = false;
 if (q.get("controls") === "0") document.body.classList.add("nocontrols");
 const hideAfter = q.has("hide") ? +q.get("hide") : 8;

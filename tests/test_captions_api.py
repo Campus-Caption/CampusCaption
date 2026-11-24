@@ -127,3 +127,15 @@ def test_clear_removes_history_and_in_progress_sentence(client):
     # new speech afterwards shows up normally
     s._on_event({"type": "final", "utterance": 3, "text": "Next one.", "start": 2.0, "end": 3.0, "latency": 0.1}, s.channel(1), 1)
     assert s.latest_text() == "Next one."
+
+
+def test_obs_features_are_gone(client):
+    """No OBS link, no green/transparent themes, no plain-text polling endpoint, overlay cannot be framed."""
+    sid = new_session(client)
+    assert client.get(f"/api/captions/session/{sid}/latest").status_code in (404, 405)
+    console = client.get("/").text
+    assert "copy-obs" not in console and "OBS" not in console
+    overlay = client.get("/overlay")
+    assert overlay.headers["x-frame-options"] == "DENY"
+    js = client.get("/static/js/overlay.js").text
+    assert '"green"' not in js and '"transparent"' not in js

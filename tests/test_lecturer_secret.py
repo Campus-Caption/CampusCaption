@@ -55,7 +55,6 @@ def test_every_control_endpoint_rejects_requests_without_the_secret(client, prot
 def test_viewer_endpoints_stay_public(client, protected):
     sid = start(client).json()["session_id"]
     assert client.get(f"/api/captions/session/{sid}").status_code == 200
-    assert client.get(f"/api/captions/session/{sid}/latest").status_code == 200
     with client.websocket_connect(f"/api/captions/ws/listen/{sid}") as lis:
         assert lis.receive_json()["type"] == "snapshot"
     assert client.get("/overlay").status_code == 200

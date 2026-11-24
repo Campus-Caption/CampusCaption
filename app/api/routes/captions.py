@@ -9,7 +9,7 @@ from fastapi.responses import PlainTextResponse
 from pydantic import ValidationError
 
 from app.core.config import get_settings
-from app.models.schemas import CaptionChunk, CaptionSession as CaptionSessionOut, SessionCreate, SettingsPatch
+from app.models.schemas import CaptionSession as CaptionSessionOut, SessionCreate, SettingsPatch
 from app.stt import export
 from app.stt.manager import CaptionSession, EngineUnavailable, SessionManager, TooManySessions
 from app.stt.models import LOCAL_MODELS
@@ -130,13 +130,6 @@ async def end_session(s: CaptionSession = Depends(owned_session), manager: Sessi
     s.broadcast({"type": "ended"})
     manager.sessions.pop(s.id, None)
     return {"ok": True}
-
-
-# Compatibility / OBS fallback: plain polling still works.
-@router.get("/session/{session_id}/latest", response_model=CaptionChunk)
-def latest_caption(session_id: str, manager: SessionManager = Depends(get_manager)):
-    s = manager.get(session_id)
-    return CaptionChunk(session_id=session_id, text=s.latest_text() if s else "No session.", is_final=False)
 
 
 @router.get("/session/{session_id}/transcript")

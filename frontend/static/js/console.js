@@ -383,7 +383,6 @@ async function init() {
   $("clear").onclick = async () => { if (S.sessionId) await api(`/api/captions/session/${S.sessionId}/clear`, { method: "POST" }); else renderer.reset(); };
   $("overlay-link").addEventListener("click", openCaptionScreen);
   $("copy-link").onclick = async (e) => { if (await ensureSession()) copy(overlayUrl(), e.target); };
-  $("copy-obs").onclick = async (e) => { if (await ensureSession()) copy(overlayUrl("&theme=transparent&controls=0&hide=0"), e.target); };
   $("export").onclick = exportTranscript;
   $("end").onclick = endSession;
   window.addEventListener("beforeunload", (e) => { if (S.wantOn) { e.preventDefault(); e.returnValue = ""; } });

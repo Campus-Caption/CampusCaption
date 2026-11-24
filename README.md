@@ -1,6 +1,6 @@
 # CampusCaption
 
-Live captions for campus lectures or events. Speak into a microphone, captions appear on a beamer / OBS / any screen.
+Live captions for campus lectures or events. Speak into a microphone, captions appear on a beamer or any screen.
 Speech recognition runs only on local models: audio never leaves this computer.
 
 | Model | Best for | Needs |

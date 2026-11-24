@@ -212,5 +212,4 @@ select:hover, input[type="text"]:hover { border-color: var(--ink); }
   .projector { grid-column: 1 / -1; }
   .projector .primary { flex: 1 1 auto; min-width: 0; padding: .6rem .75rem; font-size: .9375rem; }
   .link-btn { font-size: .875rem; padding: .6rem .45rem; white-space: nowrap; }
-  .wide-only { display: none; }
 }

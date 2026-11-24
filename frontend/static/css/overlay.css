@@ -1,12 +1,9 @@
 :root { --fs: 40px; --lines: 3; --fg: #fff; --bg: rgba(0,0,0,.82); }
 * { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; font-family: "Atkinson Hyperlegible Next", "Atkinson Hyperlegible", system-ui, "Segoe UI", sans-serif; background: transparent; }
+html, body { margin: 0; height: 100%; font-family: "Atkinson Hyperlegible Next", "Atkinson Hyperlegible", system-ui, "Segoe UI", sans-serif; background: #000; }
 body[data-theme="dark"]  { --fg: #fff; --bg: rgba(0,0,0,.85); background: #000; }
 body[data-theme="light"] { --fg: #111; --bg: rgba(255,255,255,.95); background: #fff; }
 body[data-theme="contrast"] { --fg: #ffe600; --bg: #000; background: #000; }
-body[data-theme="green"] { --fg: #fff; --bg: #00b140; background: #00b140; }       /* chroma key for OBS */
-body[data-theme="transparent"] { --fg: #fff; --bg: rgba(0,0,0,.0); }             /* OBS browser source */
-body[data-theme="transparent"] .cap-line { text-shadow: 0 0 6px #000, 0 0 3px #000; }
 
 .stage { position: fixed; inset: 0; display: flex; align-items: flex-end; justify-content: center; padding: 2vh 3vw 5vh; }
 .cap-box {
@@ -36,4 +33,3 @@ body.nocontrols .bar { display: none; }
 
 /* speaker tags (two microphones): THA pink for the lecturer, neutral for the audience; readable on every theme */
 body[data-theme="light"] { --speaker-1: #c8003c; --speaker-2: #4a4a4a; }
-body[data-theme="green"] { --speaker-1: #fff; --speaker-2: #fff; }
