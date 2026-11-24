@@ -2,8 +2,13 @@
 
 Live captions for campus lectures or events. Speak into a microphone, captions appear on a beamer / OBS / any screen.
 
-**There is no login.** Anyone who can reach the server can start captions and use your OpenAI key, so run it on your own
-machine (it listens on 127.0.0.1) or inside a network you trust. Add authentication before exposing it publicly.
+**Lecturer password.** Set `LECTURER_SECRET` in `.env` whenever other people can reach the server. Then starting,
+changing, clearing, exporting and ending captions (and streaming the microphone) need that password; the console asks
+for it once per browser tab. Viewers (overlay, caption feed) never need it. If it is empty, anyone who can reach the
+server can control captions and use your OpenAI key, so only leave it empty on your own machine (127.0.0.1).
+
+**No audio on disk.** Audio only lives in RAM. `tests/test_no_audio_on_disk.py` streams audio through the whole
+pipeline and fails if any file is written or any audio shows up in the logs.
 
 ## Quick start (Windows)
 

@@ -10,6 +10,10 @@ class Settings(BaseSettings):
     app_name: str = "CampusCaption"
     environment: str = "development"  # development | production
 
+    # Shared secret for the lecturer controls (start / settings / clear / end / export / microphone stream).
+    # Empty = no protection, fine on 127.0.0.1 only. Set it whenever other people can reach the server.
+    lecturer_secret: str = ""
+
     # --- Live captions / speech-to-text ---------------------------------------
     stt_default_engine: str = "local"          # local | openai | mistral
     stt_local_model: str = "parakeet"          # parakeet | whisper-turbo | whisper-small

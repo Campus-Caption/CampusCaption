@@ -1,5 +1,6 @@
 """Live captions: session control (REST) and audio in / captions out (WebSocket)."""
 import asyncio
+import hmac
 import json
 import logging
 
@@ -7,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, statu
 from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import ValidationError
 
+from app.core.config import get_settings
 from app.models.schemas import CaptionChunk, CaptionSession as CaptionSessionOut, SessionCreate, SettingsPatch
 from app.stt import export
 from app.stt.manager import CaptionSession, EngineUnavailable, SessionManager, TooManySessions
@@ -18,6 +20,8 @@ router = APIRouter(prefix="/captions", tags=["captions"])
 
 MAX_FRAME_BYTES = 64 * 1024
 MAX_LISTENERS = 500
+SECRET_HEADER = "X-Lecturer-Secret"
+AUTH_TIMEOUT_S = 5.0
 
 
 def get_manager(request: Request) -> SessionManager:
@@ -28,7 +32,23 @@ def _http(code: int, key: str, message: str) -> HTTPException:
     return HTTPException(status_code=code, detail={"code": key, "message": message})
 
 
-def owned_session(session_id: str, manager: SessionManager = Depends(get_manager)) -> CaptionSession:
+def secret_ok(given: str | None) -> bool:
+    """True when no lecturer secret is configured, or `given` matches it (constant-time compare)."""
+    expected = get_settings().lecturer_secret
+    if not expected:
+        return True
+    return given is not None and hmac.compare_digest(given.encode(), expected.encode())
+
+
+def require_lecturer(request: Request) -> None:
+    """Guards every control endpoint. Viewers (overlay, live feed, public status) never need the secret."""
+    if not secret_ok(request.headers.get(SECRET_HEADER)):
+        raise HTTPException(status_code=401, detail={"code": "unauthorized", "message": "Lecturer password required."},
+                            headers={"WWW-Authenticate": "LecturerSecret"})
+
+
+def owned_session(session_id: str, _: None = Depends(require_lecturer),
+                  manager: SessionManager = Depends(get_manager)) -> CaptionSession:
     s = manager.get(session_id)
     if s is None:
         raise _http(404, "no_session", "Session not found.")
@@ -42,10 +62,10 @@ def _out(s: CaptionSession) -> CaptionSessionOut:
 # --------------------------------------------------------------------------- engines
 @router.get("/engines")
 def engines(manager: SessionManager = Depends(get_manager)):
-    return manager.engines()
+    return {**manager.engines(), "auth_required": bool(get_settings().lecturer_secret)}
 
 
-@router.post("/engines/local/{model}/warm")
+@router.post("/engines/local/{model}/warm", dependencies=[Depends(require_lecturer)])
 async def warm_model(model: str, manager: SessionManager = Depends(get_manager)):
     """Start loading (and, the first time, downloading) a local model so the first caption is instant."""
     if model not in LOCAL_MODELS:
@@ -59,7 +79,7 @@ async def warm_model(model: str, manager: SessionManager = Depends(get_manager))
 
 # --------------------------------------------------------------------------- sessions
 # Only lecturers/admins may start a captioning session. The body is optional (defaults come from .env).
-@router.post("/session", response_model=CaptionSessionOut)
+@router.post("/session", response_model=CaptionSessionOut, dependencies=[Depends(require_lecturer)])
 async def start_session(body: SessionCreate | None = None, manager: SessionManager = Depends(get_manager)):
     settings = (body.settings if body else None) or manager.default_settings()
     try:
@@ -137,9 +157,22 @@ def transcript(session_id: str, format: str = "txt", s: CaptionSession = Depends
 @router.websocket("/ws/ingest/{session_id}")
 async def ws_ingest(ws: WebSocket, session_id: str):
     """Browser microphone -> server: binary frames of 16 kHz mono PCM16 little-endian, plus JSON control
-    messages ({"type":"start"} / {"type":"stop"} / {"type":"ping"})."""
+    messages ({"type":"start"} / {"type":"stop"} / {"type":"ping"}).
+
+    If a lecturer secret is configured, the first message must be {"type":"auth","secret":"..."} (sent in the
+    body rather than the URL so it never shows up in access logs); otherwise the socket is closed with 4401."""
     manager: SessionManager = ws.app.state.captions
     await ws.accept()
+    if get_settings().lecturer_secret:
+        try:
+            first = await asyncio.wait_for(ws.receive_text(), AUTH_TIMEOUT_S)
+            msg = json.loads(first)
+            given = msg.get("secret") if isinstance(msg, dict) and msg.get("type") == "auth" else None
+        except Exception:
+            given = None
+        if not isinstance(given, str) or not secret_ok(given):
+            await ws.close(4401)
+            return
     session = manager.get(session_id)
     if session is None:
         await ws.close(4404)

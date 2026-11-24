@@ -22,6 +22,30 @@ function settings() {
   };
 }
 
+// ------------------------------------------------------------------ lecturer secret
+// Kept in sessionStorage only (gone when the tab closes), sent as a header on every control request.
+const secret = {
+  get() { try { return sessionStorage.getItem("cc-secret") || ""; } catch { return ""; } },
+  set(v) { try { v ? sessionStorage.setItem("cc-secret", v) : sessionStorage.removeItem("cc-secret"); } catch {} },
+  ask(again) {
+    const v = prompt(again ? "Wrong lecturer password. Try again:" : "Lecturer password (LECTURER_SECRET on the server):");
+    if (v === null) return false;
+    secret.set(v.trim());
+    return true;
+  },
+};
+
+// fetch() for control endpoints: adds the secret and, on 401, asks for it and retries.
+async function api(url, opts = {}) {
+  for (let attempt = 0; ; attempt++) {
+    const headers = { ...(opts.headers || {}) };
+    const s = secret.get();
+    if (s) headers["X-Lecturer-Secret"] = s;
+    const res = await fetch(url, { ...opts, headers });
+    if (res.status !== 401 || attempt >= 3 || !secret.ask(attempt > 0 || !!s)) return res;
+  }
+}
+
 function notice(text, kind = "info") {
   const g = $("gate");
   g.hidden = !text;
@@ -89,7 +113,7 @@ function onSettingsChange() {
   if (!S.sessionId) return;
   clearTimeout(S.patchTimer);
   S.patchTimer = setTimeout(async () => {
-    const res = await fetch(`/api/captions/session/${S.sessionId}/settings`, {
+    const res = await api(`/api/captions/session/${S.sessionId}/settings`, {
       method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(s),
     });
     if (!res.ok) notice(await errorMessage(res), "error");
@@ -105,7 +129,7 @@ async function errorMessage(res) {
 // ------------------------------------------------------------------ session + feed
 async function ensureSession() {
   if (S.sessionId) return true;
-  const res = await fetch("/api/captions/session", {
+  const res = await api("/api/captions/session", {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ settings: settings() }),
   });
   if (!res.ok) { notice(await errorMessage(res), "error"); return false; }
@@ -186,6 +210,7 @@ async function openIngest() {
   const ws = new WebSocket(`${proto}://${location.host}/api/captions/ws/ingest/${S.sessionId}`);
   S.ws = ws;
   ws.binaryType = "arraybuffer";
+  ws.onopen = () => ws.send(JSON.stringify({ type: "auth", secret: secret.get() }));
   ws.onmessage = (m) => {
     const ev = JSON.parse(m.data);
     if (ev.type === "ready") { S.ingestReady = true; S.retry = 0; ws.send(JSON.stringify({ type: "start" })); }
@@ -195,6 +220,10 @@ async function openIngest() {
   ws.onclose = (e) => {
     S.ingestReady = false;
     if (!S.wantOn || S.ws !== ws) return;
+    if (e.code === 4401) {
+      if (secret.ask(true)) { setTimeout(() => S.wantOn && openIngest(), 0); return; }
+      notice("Lecturer password required.", "error"); stop(); return;
+    }
     if (e.code === 4409) { notice("This session is already running in another window.", "error"); stop(); return; }
     if (e.code === 4404) { notice("The session no longer exists. Please start again.", "error"); S.sessionId = null; stop(); return; }
     S.retry += 1;
@@ -247,14 +276,14 @@ function stop() {
 async function endSession() {
   if (!S.sessionId || !confirm("End this session? The caption screen will disconnect and the transcript will be gone.")) return;
   stop();
-  await fetch(`/api/captions/session/${S.sessionId}`, { method: "DELETE" });
+  await api(`/api/captions/session/${S.sessionId}`, { method: "DELETE" });
   S.feed?.close(); S.feed = null; S.sessionId = null;
   renderer.reset(); $("share").hidden = true; $("stats").textContent = "";
 }
 
 async function exportTranscript() {
   const fmt = $("export-format").value;
-  const res = await fetch(`/api/captions/session/${S.sessionId}/transcript?format=${fmt}`);
+  const res = await api(`/api/captions/session/${S.sessionId}/transcript?format=${fmt}`);
   if (!res.ok) { notice(await errorMessage(res), "error"); return; }
   const blob = await res.blob();
   const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `captions.${fmt}` });
@@ -271,6 +300,7 @@ async function init() {
   const res = await fetch("/api/captions/engines");
   if (!res.ok) { notice(await errorMessage(res), "error"); return; }
   S.info = await res.json();
+  if (S.info.auth_required && !secret.get()) secret.ask(false);
   renderEngines(S.info);
   $("app").hidden = false;
   if (navigator.mediaDevices?.enumerateDevices) listMics().catch(() => {});
@@ -281,7 +311,7 @@ async function init() {
   $("engines").addEventListener("change", onSettingsChange);
   $("glossary").addEventListener("input", onSettingsChange);
   $("mic").addEventListener("change", () => { store.set({ mic: $("mic").value }); if (S.wantOn) { closeMic(); openMic().catch((e) => notice(e.message, "error")); } });
-  $("clear").onclick = async () => { if (S.sessionId) await fetch(`/api/captions/session/${S.sessionId}/clear`, { method: "POST" }); else renderer.reset(); };
+  $("clear").onclick = async () => { if (S.sessionId) await api(`/api/captions/session/${S.sessionId}/clear`, { method: "POST" }); else renderer.reset(); };
   $("copy-link").onclick = (e) => copy($("overlay-link").href, e.target);
   $("copy-obs").onclick = (e) => copy($("overlay-link").href + "&theme=transparent&controls=0&hide=0", e.target);
   $("export").onclick = exportTranscript;

@@ -19,6 +19,11 @@ logging.basicConfig(level=logging.INFO)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    settings = get_settings()
+    if not settings.lecturer_secret:
+        logging.getLogger("campuscaption").warning(
+            "LECTURER_SECRET is not set: anyone who can reach this server can start, change and end captions. "
+            "Set it in .env before exposing the server beyond this machine.")
     app.state.captions = SessionManager(get_settings())
     app.state.captions.start()
     try:
