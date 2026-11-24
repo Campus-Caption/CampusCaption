@@ -43,6 +43,11 @@ body { margin: 0; background: var(--desk); color: var(--ink); font: 400 1.0625re
 .mark i { display: block; height: 5px; border-radius: 1px; background: var(--ink); }
 .mark i:last-child { width: 62%; background: var(--tally); }
 
+.top-right { display: flex; align-items: center; gap: .75rem 1.5rem; flex-wrap: wrap; justify-content: flex-end; }
+.projector { display: flex; align-items: center; gap: .25rem; }
+.projector .primary { padding: .6rem 1rem; }
+.link-btn { background: none; color: var(--ink); font-weight: 700; font-size: .9375rem; padding: .6rem .7rem; border-radius: 6px; }
+.link-btn:hover { background: var(--paper); text-decoration: underline; text-decoration-color: var(--tha-pink); text-underline-offset: 3px; }
 .onair { display: inline-flex; align-items: center; gap: .55rem; margin: 0; font-weight: 700; font-size: .9375rem; }
 .lamp { width: .65rem; height: .65rem; border-radius: 50%; background: #b3b3b3; flex: none; }
 #clock { font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 500; }
@@ -116,7 +121,7 @@ button:disabled { opacity: .55; cursor: default; }
 .primary:hover { background: var(--black); }
 .secondary { background: var(--field); color: var(--ink); box-shadow: inset 0 0 0 1px #c4c4c4; font-weight: 500; }
 .secondary:hover { box-shadow: inset 0 0 0 1px var(--ink); }
-.danger { background: none; color: #b3261e; padding: .4rem 0; font-weight: 700; margin-top: 1.25rem; }
+.danger { background: none; color: #b3261e; padding: .7rem .5rem; font-weight: 700; margin-left: auto; }
 .danger:hover { text-decoration: underline; }
 
 /* ---------- desk blocks: separated by space and a hairline, not boxed ---------- */
@@ -200,4 +205,12 @@ select:hover, input[type="text"]:hover { border-color: var(--ink); }
   .strip .meter { grid-column: 2; grid-row: 3; }
   .strip .strip-end { grid-column: 3; grid-row: 1; }
   .actions > * { flex: 1 1 100%; }
+  .danger { margin-left: 0; }
+  /* phone: brand and Live on one line, the projector buttons as one full-width row below */
+  .top { display: grid; grid-template-columns: 1fr auto; row-gap: .75rem; }
+  .top-right { display: contents; }
+  .projector { grid-column: 1 / -1; }
+  .projector .primary { flex: 1 1 auto; min-width: 0; padding: .6rem .75rem; font-size: .9375rem; }
+  .link-btn { font-size: .875rem; padding: .6rem .45rem; white-space: nowrap; }
+  .wide-only { display: none; }
 }

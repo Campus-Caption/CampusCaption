@@ -15,11 +15,19 @@
   <div class="page">
     <header class="top">
       <span class="brand"><span class="mark" aria-hidden="true"><i></i><i></i></span>CampusCaption</span>
-      <p class="onair" id="state-chip" aria-live="polite">
-        <span class="lamp" aria-hidden="true"></span>
-        <span id="state-text">Off</span>
-        <time id="clock" hidden>0:00</time>
-      </p>
+      <div class="top-right">
+        <p class="onair" id="state-chip" aria-live="polite">
+          <span class="lamp" aria-hidden="true"></span>
+          <span id="state-text">Off</span>
+          <time id="clock" hidden>0:00</time>
+        </p>
+        <!-- Projector: available right away; the first click creates the session if there is none yet -->
+        <div class="projector" role="group" aria-label="Caption screen for the projector">
+          <a id="overlay-link" class="primary" href="/overlay" target="_blank" rel="noopener">Open caption screen</a>
+          <button id="copy-link" type="button" class="link-btn">Copy link</button>
+          <button id="copy-obs" type="button" class="link-btn" aria-label="Copy OBS link" title="Transparent background, no buttons: for OBS browser sources"><span class="wide-only">Copy </span>OBS link</button>
+        </div>
+      </div>
     </header>
 
     <p id="gate" class="notice info" role="status" hidden></p>
@@ -103,21 +111,17 @@
         <p id="polish-hint" class="hint"></p>
       </section>
 
-      <!-- Projector & transcript -->
+      <!-- Transcript & session -->
       <section class="block" id="output" aria-labelledby="out-h">
         <div class="block-head">
-          <h2 id="out-h">Projector and transcript</h2>
-          <p class="hint output-empty">Start captions once to get the projector link and the transcript.</p>
+          <h2 id="out-h">Transcript</h2>
+          <p class="hint output-empty">Available once captions have started.</p>
         </div>
         <div id="share" hidden>
           <div class="actions">
-            <a id="overlay-link" class="primary" target="_blank" rel="noopener">Open caption screen</a>
-            <button id="copy-link" type="button" class="secondary">Copy screen link</button>
-            <button id="copy-obs" type="button" class="secondary">Copy OBS link</button>
-            <button id="export" type="button" class="secondary">Download transcript</button>
+            <button id="export" type="button" class="secondary">Download transcript (.txt)</button>
+            <button id="end" type="button" class="danger">End session</button>
           </div>
-          <p class="hint">Drag the caption screen onto the projector and press F for full screen. The OBS link has a transparent background.</p>
-          <button id="end" type="button" class="danger">End session</button>
         </div>
       </section>
     </main>
