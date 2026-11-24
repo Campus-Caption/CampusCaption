@@ -31,6 +31,19 @@
 
     <p id="gate" class="notice info" role="status" hidden></p>
 
+    <!-- End-of-lecture report: filled by console.js when a session ends -->
+    <section id="report" class="report" aria-labelledby="report-h" tabindex="-1" hidden>
+      <div class="report-head">
+        <h2 id="report-h">Lecture analysis</h2>
+        <div class="report-actions" id="report-actions" hidden>
+          <button id="dl-analysis" type="button" class="primary">Download analysis (.md)</button>
+          <button id="dl-transcript" type="button" class="secondary">Download transcript (.txt)</button>
+          <button id="close-report" type="button" class="link-btn">Close</button>
+        </div>
+      </div>
+      <div id="report-body" aria-live="polite"></div>
+    </section>
+
     <main id="app" hidden>
       <!-- The monitor: exactly what the room sees, plus the one switch that matters -->
       <section class="monitor" aria-label="Caption monitor">
@@ -110,12 +123,18 @@
         <p id="polish-hint" class="hint"></p>
       </section>
 
-      <!-- Transcript & session -->
+      <!-- End of lecture: transcript, AI analysis, end session -->
       <section class="block" id="output" aria-labelledby="out-h">
         <div class="block-head">
-          <h2 id="out-h">Transcript</h2>
+          <h2 id="out-h">End of lecture</h2>
           <p class="hint output-empty">Available once captions have started.</p>
         </div>
+        <label class="check" id="analyse-row"><input id="analyse" type="checkbox" checked />
+          <span>Analyse the lecture with Claude when I end the session
+            <span class="hint" id="analyse-hint">Summary, where students may get lost, open audience questions, likely caption errors and review questions.</span>
+          </span>
+        </label>
+        <p class="hint" id="analyse-privacy"></p>
         <div id="share" hidden>
           <div class="actions">
             <button id="export" type="button" class="secondary">Download transcript (.txt)</button>
@@ -126,6 +145,7 @@
     </main>
   </div>
   <script src="/static/js/captions-view.js"></script>
+  <script src="/static/js/report.js"></script>
   <script src="/static/js/console.js"></script>
 </body>
 </html>

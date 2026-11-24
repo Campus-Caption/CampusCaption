@@ -80,6 +80,12 @@ function renderSettings(info) {
   $("polish").closest("label").hidden = !info.polish.available; // optional extra: only shown once ANTHROPIC_API_KEY is set
   $("polish-hint").hidden = !info.polish.available;
   $("polish-hint").textContent = info.polish.available ? info.polish.privacy : `Not available: ${info.polish.reason}`;
+  const an = info.analysis || { available: false, reason: "" };
+  $("analyse").checked = an.available && saved.analyse !== false;
+  $("analyse").disabled = !an.available;
+  $("analyse-privacy").textContent = an.available
+    ? an.privacy + " Audio is never sent."
+    : "AI analysis needs ANTHROPIC_API_KEY in .env. Without it you still get the numbers (duration, pace, questions).";
 }
 
 function onSettingsChange() {
@@ -332,12 +338,31 @@ function stop() {
 
 // ------------------------------------------------------------------ wiring
 async function endSession() {
-  if (!S.sessionId || !confirm("End this session? The caption screen will disconnect and the transcript will be gone.")) return;
+  if (!S.sessionId) return;
+  const ai = !!S.info.analysis?.available && $("analyse").checked;
+  const ask = ai
+    ? "End this session? Captions stop, the caption screen disconnects, and Claude analyses the transcript."
+    : "End this session? Captions stop and the caption screen disconnects.";
+  if (!confirm(ask)) return;
   stop();
-  await api(`/api/captions/session/${S.sessionId}`, { method: "DELETE" });
-  S.feed?.close(); S.feed = null; S.sessionId = null;
-  renderer.reset(); $("share").hidden = true; $("stats").textContent = "";
-  $("overlay-link").href = "/overlay";
+  const sid = S.sessionId;
+  Report.loading(ai);
+  let transcript = "", result = null;
+  try {
+    const t = await api(`/api/captions/session/${sid}/transcript`);
+    if (t.ok) transcript = await t.text();
+    const r = await api(`/api/captions/session/${sid}/analysis?ai=${ai}`, { method: "POST" });
+    result = r.ok ? await r.json() : { error: await errorMessage(r) };
+  } catch (e) {
+    result = { error: "The analysis could not be loaded: " + (e.message || e) };
+  } finally {
+    // the session (and its transcript) is deleted on the server either way; the browser keeps the copy above
+    await api(`/api/captions/session/${sid}`, { method: "DELETE" }).catch(() => {});
+    S.feed?.close(); S.feed = null; S.sessionId = null;
+    renderer.reset(); $("share").hidden = true; $("stats").textContent = "";
+    $("overlay-link").href = "/overlay";
+  }
+  Report.show(result, transcript);
 }
 
 async function exportTranscript() {
@@ -385,6 +410,10 @@ async function init() {
   $("copy-link").onclick = async (e) => { if (await ensureSession()) copy(overlayUrl(), e.target); };
   $("export").onclick = exportTranscript;
   $("end").onclick = endSession;
+  $("analyse").addEventListener("change", () => store.set({ analyse: $("analyse").checked }));
+  $("close-report").onclick = () => { $("report").hidden = true; };
+  $("dl-analysis").onclick = () => Report.download("markdown");
+  $("dl-transcript").onclick = () => Report.download("transcript");
   window.addEventListener("beforeunload", (e) => { if (S.wantOn) { e.preventDefault(); e.returnValue = ""; } });
 }
 init();

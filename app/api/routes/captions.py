@@ -11,6 +11,7 @@ from pydantic import ValidationError
 from app.core.config import get_settings
 from app.models.schemas import CaptionSession as CaptionSessionOut, SessionCreate, SettingsPatch
 from app.stt import export
+from app.stt.analysis import AnalysisUnavailable, lecture_stats
 from app.stt.manager import CaptionSession, EngineUnavailable, SessionManager, TooManySessions
 from app.stt.models import LOCAL_MODELS
 from app.stt.types import SessionSettings
@@ -130,6 +131,30 @@ async def end_session(s: CaptionSession = Depends(owned_session), manager: Sessi
     s.broadcast({"type": "ended"})
     manager.sessions.pop(s.id, None)
     return {"ok": True}
+
+
+@router.post("/session/{session_id}/analysis")
+async def analyse_session(ai: bool = True, s: CaptionSession = Depends(owned_session),
+                          manager: SessionManager = Depends(get_manager)):
+    """End-of-lecture analysis for the professor: exact numbers always, Claude's analysis when `ai` and a key
+    is configured. Call it before ending the session; nothing is stored on the server."""
+    items = s.transcript()
+    if not items:
+        raise _http(422, "empty", "Nothing was captioned in this session.")
+    labels = list(s.settings.speakers) if s.multi_mic else None
+    stats = lecture_stats(items, labels)
+    result = {"stats": stats, "analysis": None, "reason": "", "model": ""}
+    if not ai:
+        result["reason"] = "AI analysis was switched off."
+    elif manager.analyzer is None:
+        result["reason"] = "AI analysis needs ANTHROPIC_API_KEY in .env."
+    else:
+        try:
+            analysis = await manager.analyzer.analyse(items, labels, stats)
+            result.update(analysis=analysis.model_dump(), model=manager.analyzer.model)
+        except AnalysisUnavailable as exc:
+            result["reason"] = str(exc)
+    return result
 
 
 @router.get("/session/{session_id}/transcript")
