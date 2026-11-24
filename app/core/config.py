@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     lecturer_secret: str = ""
 
     # --- Live captions / speech-to-text ---------------------------------------
-    stt_local_model: str = "parakeet"          # parakeet | whisper-turbo | whisper-small
+    stt_local_model: str = "parakeet"          # nemotron | parakeet | whisper-turbo | whisper-small | voxtral
     stt_default_language: str = "de"         # auto | de | en | ...
     stt_model_dir: str = "./data/models"       # downloaded model files live here (mount as a volume in Docker)
     stt_device: str = "auto"                   # Whisper only: auto | cpu | cuda
