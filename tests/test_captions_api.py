@@ -74,6 +74,7 @@ def test_transcript_is_plain_text_only(client):
         assert "WEBVTT" not in r.text and "-->" not in r.text
 
 
+@pytest.mark.skipif(not WAV.exists(), reason="speech sample missing (audio is never committed)")
 def test_ingest_streams_real_speech_to_listeners(client):
     sid = new_session(client)
     with wave.open(str(WAV)) as w:

@@ -35,12 +35,27 @@ pipeline and fails if any file is written or any audio shows up in the logs.
 
 Manual start: `pip install -r requirements-local.txt` then `python main.py`. Docker: `docker compose up --build`.
 
+## Students on their phones
+
+Students can follow the captions on their own phones, with no app and no account. They can choose the text size
+and colours, and scroll back to the start of the lecture.
+
+1. In `.env` set `HOST=0.0.0.0` and a `LECTURER_SECRET` (the server refuses to listen on the network without one),
+   then restart. Windows asks once whether to allow Python through the firewall: allow it for private networks.
+2. In the console, **Share with students** shows a room code (e.g. `K7P-42Q`) and a QR code. The caption screen
+   on the projector shows them in a corner too (press `j` to hide it).
+3. Students scan the QR code, or open `http://<this computer>:8080/watch` and type the code.
+
+Phones must be able to reach this computer (same Wi-Fi, and no client isolation on that network). If the address in the join
+link is wrong, for example in Docker or behind a reverse proxy, set `PUBLIC_URL`. **Clear screen** and **End session**
+remove the text from the phones as well.
+
 ## Layout
 
 - `main.py` - run locally
 - `app/api/routes/captions.py` - REST + WebSocket API
 - `app/stt/` - speech pipeline: VAD, segmenter, local engines (Nemotron / Parakeet / Whisper / Voxtral), optional Claude cleanup, session manager
-- `app/templates/`, `frontend/static/` - console (`/`) and overlay (`/overlay`)
+- `app/templates/`, `frontend/static/` - console (`/`), overlay (`/overlay`) and the students' phone view (`/watch`, `/j/<code>`)
 - `scripts/stt_smoke.py` - run a WAV through a real local model and report speed
 - `tests/` - `pip install -r requirements-dev.txt && pytest`
 

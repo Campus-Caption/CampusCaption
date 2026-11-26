@@ -1,12 +1,14 @@
-// Shared caption renderer + listen-feed client used by the console preview and the overlay.
+// Shared caption renderer + listen-feed client used by the console preview, the overlay and the phone view.
 // Layout rule that fixes the prototype's "text jumps over 3 lines": text is LEFT-aligned and anchored to the
 // bottom; finished sentences stay where they are, only the live sentence grows, and old lines scroll away.
 const CaptionFeed = (() => {
-  function connect(sessionId, handlers) {
+  // `query`: extra query string for the WebSocket only, e.g. "history=all" (phones get the whole lecture once;
+  // the polling fallback keeps the small 20-sentence snapshot, which Renderer's keepOlder merges in).
+  function connect(sessionId, handlers, { query = "" } = {}) {
     let ws, closed = false, retry = 500, pollTimer = null;
     const proto = location.protocol === "https:" ? "wss" : "ws";
     const open = () => {
-      ws = new WebSocket(`${proto}://${location.host}/api/captions/ws/listen/${sessionId}`);
+      ws = new WebSocket(`${proto}://${location.host}/api/captions/ws/listen/${sessionId}${query ? "?" + query : ""}`);
       ws.onopen = () => { retry = 500; handlers.onConnection?.(true); stopPoll(); };
       ws.onmessage = (m) => { try { handlers.onEvent(JSON.parse(m.data)); } catch (e) { console.error(e); } };
       ws.onclose = (e) => {
@@ -32,10 +34,14 @@ const CaptionFeed = (() => {
   }
 
   class Renderer {
-    constructor(el, { maxHistory = 30 } = {}) {
+    // keepOlder: a snapshot (reconnect, polling fallback) only replaces the sentences it contains; older ones stay,
+    // unless the lecturer cleared them meanwhile (cleared_upto). Used by the phone view, which keeps scrollback.
+    constructor(el, { maxHistory = 30, keepOlder = false } = {}) {
       this.el = el;
       this.sentences = new Map(); // utterance id -> {el, speaker, live, committed, tentative, text}
       this.maxHistory = maxHistory;
+      this.keepOlder = keepOlder;
+      this.follow = true; // false = the reader scrolled up; new text must not yank them back down
       this.labels = ["Lecturer", "Audience"];
       this.multi = false; // labels are shown only once a second microphone is in use
     }
@@ -50,6 +56,18 @@ const CaptionFeed = (() => {
       this.sentences.clear();
       history.forEach((h) => this.final(h.utterance, h.text, h.speaker));
       for (const l of [].concat(live || [])) this.partial(l.utterance, l.committed, l.tentative, l.speaker);
+      this.scroll();
+    }
+    snapshot(ev) {
+      if (!this.keepOlder) { this.reset(ev.history, ev.live); return; }
+      const history = ev.history || [];
+      const cut = ev.cleared_upto || 0;
+      const first = history.length ? Math.min(...history.map((h) => h.utterance)) : Infinity;
+      for (const [id, s] of this.sentences) {
+        if (id <= cut || id >= first || s.live) { s.el.remove(); this.sentences.delete(id); }
+      }
+      history.forEach((h) => this.final(h.utterance, h.text, h.speaker));
+      for (const l of [].concat(ev.live || [])) this.partial(l.utterance, l.committed, l.tentative, l.speaker);
       this.scroll();
     }
     _node(id, speaker) {
@@ -104,11 +122,11 @@ const CaptionFeed = (() => {
     }
     revise(id, text) { const s = this.sentences.get(id); if (s) { s.text = text; if (!s.live) this._paint(s); } }
     clear() { this.reset(); }
-    scroll() { this.el.scrollTop = this.el.scrollHeight; }
+    scroll() { if (this.follow) this.el.scrollTop = this.el.scrollHeight; }
     /** apply one feed event; returns true if it touched the text */
     apply(ev) {
       switch (ev.type) {
-        case "snapshot": this.setSpeakers(ev.settings); this.reset(ev.history, ev.live); return true;
+        case "snapshot": this.setSpeakers(ev.settings); this.snapshot(ev); return true;
         case "settings": this.setSpeakers(ev.settings); return false;
         case "partial": this.partial(ev.utterance, ev.committed, ev.tentative, ev.speaker); return true;
         case "final": this.final(ev.utterance, ev.text, ev.speaker); return true;

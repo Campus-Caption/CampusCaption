@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#000000" />
+  <title>CampusCaption Live</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700;800&display=swap" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Crect y=%223%22 width=%2216%22 height=%224%22 fill=%22%23000000%22/%3E%3Crect y=%229%22 width=%2210%22 height=%224%22 fill=%22%23ff0350%22/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="/static/css/captions.css" />
+  <link rel="stylesheet" href="/static/css/watch.css" />
+</head>
+<!-- Students' phone view: join with a room code, read the whole lecture so far, pick a text size. -->
+<body data-theme="dark" data-size="m">
+  <header class="bar">
+    <span class="brand"><span class="mark" aria-hidden="true"><i></i><i></i></span><span class="brand-name">CampusCaption</span></span>
+    <p id="badge" class="badge" data-state="connecting" aria-live="polite">
+      <span class="lamp" aria-hidden="true"></span><span id="badge-text">Connecting…</span>
+    </p>
+    <button id="b-settings" type="button" class="icon" aria-expanded="false" aria-controls="settings" title="Reading settings">
+      <span aria-hidden="true">Aa</span><span class="sr-only">Reading settings</span>
+    </button>
+    <button id="b-info" type="button" class="icon" title="About these captions">
+      <span aria-hidden="true">i</span><span class="sr-only">About these captions</span>
+    </button>
+  </header>
+
+  <section id="settings" class="sheet" aria-label="Reading settings" hidden>
+    <div class="seg" role="group" aria-labelledby="size-h">
+      <span id="size-h" class="seg-h">Text size</span>
+      <button type="button" data-size="s" aria-pressed="false">S</button>
+      <button type="button" data-size="m" aria-pressed="true">M</button>
+      <button type="button" data-size="l" aria-pressed="false">L</button>
+      <button type="button" data-size="xl" aria-pressed="false">XL</button>
+    </div>
+    <div class="seg" role="group" aria-labelledby="theme-h">
+      <span id="theme-h" class="seg-h">Colours</span>
+      <button type="button" data-theme="dark" aria-pressed="true">Dark</button>
+      <button type="button" data-theme="light" aria-pressed="false">Light</button>
+      <button type="button" data-theme="contrast" aria-pressed="false">Contrast</button>
+    </div>
+  </section>
+
+  <main id="join" class="join" hidden>
+    <h1>Join live captions</h1>
+    <p id="join-msg" class="join-msg" role="alert"></p>
+    <form id="join-form" novalidate>
+      <label for="code">Room code</label>
+      <input id="code" name="code" type="text" autocomplete="off" autocapitalize="characters" autocorrect="off"
+             spellcheck="false" maxlength="9" placeholder="K7P-42Q" required />
+      <button type="submit" class="primary">Join</button>
+    </form>
+    <p class="hint">The code is on the projector, or scan its QR code with your camera.</p>
+  </main>
+
+  <main id="watch" class="watch" hidden>
+    <div id="caps" class="cap-scroll feed" aria-live="polite" tabindex="0" aria-label="Live captions"></div>
+    <p id="empty" class="empty">Waiting for the lecturer to start captions…</p>
+    <button id="jump" type="button" class="jump" hidden>Jump to live <span aria-hidden="true">↓</span></button>
+  </main>
+
+  <!-- Placeholder wording until the privacy notice text (#32) is agreed. -->
+  <dialog id="info" aria-labelledby="info-h">
+    <h2 id="info-h">About these captions</h2>
+    <ul>
+      <li>The captions are made by speech recognition (AI) running on the lecturer's computer. The audio is never recorded or sent anywhere.</li>
+      <li>They can contain mistakes, especially technical terms, names and numbers.</li>
+      <li>This page does not ask who you are and the server stores nothing about you. Your text size and colours are saved only in this browser.</li>
+      <li>When the lecturer clears the screen, the text disappears here too. When the session ends, the server deletes the captions.</li>
+    </ul>
+    <form method="dialog"><button class="primary" type="submit">OK</button></form>
+  </dialog>
+
+  <script src="/static/js/captions-view.js"></script>
+  <script src="/static/js/watch.js"></script>
+</body>
+</html>

@@ -7,6 +7,8 @@ class CaptionSession(BaseModel):
     session_id: str
     language: str = "de"
     settings: SessionSettings | None = None
+    code: str = ""       # short room code students type or scan, e.g. K7P42Q (shown as K7P-42Q)
+    join_url: str = ""   # what the QR code opens
 
 
 class SessionCreate(BaseModel):

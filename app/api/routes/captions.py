@@ -1,18 +1,20 @@
 """Live captions: session control (REST) and audio in / captions out (WebSocket)."""
 import asyncio
 import hmac
+import io
 import json
 import logging
 
+import segno
 from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, status
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import PlainTextResponse, Response
 from pydantic import ValidationError
 
-from app.core.config import get_settings
+from app.core.config import get_settings, url_is_loopback
 from app.models.schemas import CaptionSession as CaptionSessionOut, SessionCreate, SettingsPatch
 from app.stt import export
 from app.stt.analysis import AnalysisUnavailable, lecture_stats
-from app.stt.manager import CaptionSession, EngineUnavailable, SessionManager, TooManySessions
+from app.stt.manager import CaptionSession, EngineUnavailable, SessionManager, TooManySessions, format_code
 from app.stt.models import LOCAL_MODELS
 from app.stt.types import SessionSettings
 
@@ -56,14 +58,27 @@ def owned_session(session_id: str, _: None = Depends(require_lecturer),
     return s
 
 
-def _out(s: CaptionSession) -> CaptionSessionOut:
-    return CaptionSessionOut(session_id=s.id, language=s.settings.language, settings=s.settings)
+def public_base(request: Request) -> str:
+    """Where students reach this server: PUBLIC_URL / the LAN address, else the address the lecturer used."""
+    return get_settings().public_base_url() or str(request.base_url).rstrip("/")
+
+
+def join_url(request: Request, s: CaptionSession) -> str:
+    return f"{public_base(request)}/j/{s.code}"
+
+
+def _out(s: CaptionSession, request: Request) -> CaptionSessionOut:
+    return CaptionSessionOut(session_id=s.id, language=s.settings.language, settings=s.settings,
+                             code=format_code(s.code), join_url=join_url(request, s))
 
 
 # --------------------------------------------------------------------------- engines
 @router.get("/engines")
-def engines(manager: SessionManager = Depends(get_manager)):
-    return {**manager.engines(), "auth_required": bool(get_settings().lecturer_secret)}
+def engines(request: Request, manager: SessionManager = Depends(get_manager)):
+    base = public_base(request)
+    # lan_ready is False when the join link would point at 127.0.0.1, which a phone cannot open
+    return {**manager.engines(), "auth_required": bool(get_settings().lecturer_secret),
+            "public_url": base, "lan_ready": not url_is_loopback(base)}
 
 
 @router.post("/engines/local/{model}/warm", dependencies=[Depends(require_lecturer)])
@@ -81,7 +96,8 @@ async def warm_model(model: str, manager: SessionManager = Depends(get_manager))
 # --------------------------------------------------------------------------- sessions
 # Only lecturers/admins may start a captioning session. The body is optional (defaults come from .env).
 @router.post("/session", response_model=CaptionSessionOut, dependencies=[Depends(require_lecturer)])
-async def start_session(body: SessionCreate | None = None, manager: SessionManager = Depends(get_manager)):
+async def start_session(request: Request, body: SessionCreate | None = None,
+                        manager: SessionManager = Depends(get_manager)):
     settings = (body.settings if body else None) or manager.default_settings()
     try:
         manager.check_engine(settings)
@@ -92,7 +108,16 @@ async def start_session(body: SessionCreate | None = None, manager: SessionManag
     except TooManySessions:
         raise _http(429, "too_many_sessions", "Too many caption sessions are already running.")
     manager.models.warm(settings.local_model)
-    return _out(session)
+    return _out(session, request)
+
+
+@router.get("/join/{code}")
+def join(code: str, manager: SessionManager = Depends(get_manager)):
+    """Public: the room code a student typed -> the session to watch."""
+    s = manager.by_code(code)
+    if s is None:
+        raise _http(404, "no_session", "No lecture with this code is running.")
+    return {"session_id": s.id, "code": format_code(s.code)}
 
 
 @router.get("/session/{session_id}")
@@ -104,8 +129,21 @@ def session_info(session_id: str, manager: SessionManager = Depends(get_manager)
     return s.snapshot()
 
 
+@router.get("/session/{session_id}/qr.svg")
+def join_qr(session_id: str, request: Request, manager: SessionManager = Depends(get_manager)):
+    """Public (the projector shows it): QR code of the students' join link."""
+    s = manager.get(session_id)
+    if s is None:
+        raise _http(404, "no_session", "Session not found.")
+    buf = io.BytesIO()
+    # a regular QR code, never a Micro QR: many phone camera apps cannot read those
+    segno.make_qr(join_url(request, s), error="m").save(buf, kind="svg", xmldecl=False, scale=8, border=2,
+                                                        dark="#000000", light="#ffffff")
+    return Response(buf.getvalue(), media_type="image/svg+xml", headers={"Cache-Control": "no-store"})
+
+
 @router.patch("/session/{session_id}/settings", response_model=CaptionSessionOut)
-async def patch_settings(patch: SettingsPatch, s: CaptionSession = Depends(owned_session)):
+async def patch_settings(patch: SettingsPatch, request: Request, s: CaptionSession = Depends(owned_session)):
     data = s.settings.model_dump()
     data.update(patch.model_dump(exclude_none=True))
     try:
@@ -116,7 +154,7 @@ async def patch_settings(patch: SettingsPatch, s: CaptionSession = Depends(owned
         await s.apply_settings(new)
     except EngineUnavailable as exc:
         raise _http(409, "engine_unavailable", str(exc))
-    return _out(s)
+    return _out(s, request)
 
 
 @router.post("/session/{session_id}/clear")
@@ -247,8 +285,12 @@ async def ws_ingest(ws: WebSocket, session_id: str, mic: int = 1):
 
 
 @router.websocket("/ws/listen/{session_id}")
-async def ws_listen(ws: WebSocket, session_id: str):
-    """Public caption feed for the overlay and the lecturer's console."""
+async def ws_listen(ws: WebSocket, session_id: str, history: str = ""):
+    """Public caption feed for the overlay, the lecturer's console and students' phones.
+
+    `?history=all` (the phone view): the first snapshot holds every sentence of the session so far instead of
+    the last 20, so a student who arrives late can scroll back to the start. Clearing the screen or ending the
+    session removes that text for everyone."""
     manager: SessionManager = ws.app.state.captions
     await ws.accept()
     session = manager.get(session_id)
@@ -259,7 +301,7 @@ async def ws_listen(ws: WebSocket, session_id: str):
     if len(session.subs) >= MAX_LISTENERS:
         await ws.close(4429)
         return
-    sub = session.subscribe()
+    sub = session.subscribe(full=history == "all")
 
     async def sender() -> None:
         while True:
