@@ -5,6 +5,7 @@ import asyncio
 import difflib
 import logging
 import re
+import secrets
 import time
 import uuid
 from collections import deque
@@ -27,12 +28,26 @@ MAX_HISTORY = 3000
 MAX_MICS = 2                  # e.g. lecturer lav mic + audience mic
 CROSSTALK_WINDOW_S = 6.0      # a sentence repeated by the other mic within this window is a duplicate
 CROSSTALK_SIMILARITY = 0.8
+SNAPSHOT_HISTORY = 20         # sentences a projector / reconnecting viewer gets; phones can ask for all of them
+# Room codes students type on a phone: no 0/O, 1/I/L, so nothing can be misread off a projector.
+CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
+CODE_LENGTH = 6
 _WORD = re.compile(r"\w+", re.UNICODE)
 
 
 def _letters(text: str) -> str:
     """Lower-case letters and digits only, so "back propagation" and "Backpropagation." compare equal."""
     return "".join(_WORD.findall(text)).lower()
+
+
+def normalize_code(code: str) -> str:
+    """'k7p-42q ' -> 'K7P42Q'."""
+    return "".join(ch for ch in code.upper() if ch.isascii() and ch.isalnum())
+
+
+def format_code(code: str) -> str:
+    """'K7P42Q' -> 'K7P-42Q', easier to read aloud and off a projector."""
+    return f"{code[:3]}-{code[3:]}" if len(code) == CODE_LENGTH else code
 
 
 class EngineUnavailable(Exception):
@@ -108,8 +123,9 @@ class Channel:
 
 
 class CaptionSession:
-    def __init__(self, manager: "SessionManager", settings: SessionSettings) -> None:
+    def __init__(self, manager: "SessionManager", settings: SessionSettings, code: str = "") -> None:
         self.id = str(uuid.uuid4())
+        self.code = code  # short room code for students (see SessionManager.by_code)
         self.settings = settings
         self.mgr = manager
         self.created = time.time()
@@ -137,10 +153,11 @@ class CaptionSession:
         return self.channels[n]
 
     # ------------------------------------------------------------------ fan-out
-    def subscribe(self) -> Subscriber:
+    def subscribe(self, full: bool = False) -> Subscriber:
+        """`full`: the first snapshot carries every sentence so far (phones that join late can scroll back)."""
         sub = Subscriber()
         self.subs.add(sub)
-        sub.push(self.snapshot())
+        sub.push(self.snapshot(full))
         return sub
 
     def unsubscribe(self, sub: Subscriber) -> None:
@@ -156,9 +173,12 @@ class CaptionSession:
         return {"local_model": s.local_model, "language": s.language, "polish": s.polish,
                 "speakers": list(s.speakers), "multi_mic": self.multi_mic}
 
-    def snapshot(self) -> dict:
-        return {"type": "snapshot", "session": self.id, "status": self.status, "settings": self.public_settings(),
-                "history": [u.public() for u in list(self.history)[-20:]], "live": list(self.live.values())}
+    def snapshot(self, full: bool = False) -> dict:
+        history = list(self.history) if full else list(self.history)[-SNAPSHOT_HISTORY:]
+        # cleared_upto lets a viewer that keeps older lines drop the ones the lecturer cleared while it was away
+        return {"type": "snapshot", "session": self.id, "code": self.code, "status": self.status,
+                "settings": self.public_settings(), "history": [u.public() for u in history],
+                "live": list(self.live.values()), "cleared_upto": self._cleared_upto}
 
     def _set_status(self, state: str, message: str = "", progress: float | None = None) -> None:
         self.status = {"type": "status", "state": state, "message": message, "progress": progress,
@@ -460,9 +480,24 @@ class SessionManager:
         live = [s for s in self.sessions.values() if s.ingest_active]
         if len(live) >= self.cfg.stt_max_sessions:
             raise TooManySessions()
-        s = CaptionSession(self, settings or self.default_settings())
+        s = CaptionSession(self, settings or self.default_settings(), code=self._new_code())
         self.sessions[s.id] = s
         return s
 
+    def _new_code(self) -> str:
+        taken = {s.code for s in self.sessions.values()}
+        while True:
+            code = "".join(secrets.choice(CODE_ALPHABET) for _ in range(CODE_LENGTH))
+            if code not in taken:
+                return code
+
     def get(self, sid: str) -> CaptionSession | None:
         return self.sessions.get(sid)
+
+    def by_code(self, code: str) -> CaptionSession | None:
+        """The session students join with this room code. Looked up in `sessions` itself, so a code stops
+        working the moment its session is ended or swept."""
+        code = normalize_code(code)
+        if len(code) != CODE_LENGTH:
+            return None
+        return next((s for s in self.sessions.values() if s.code == code), None)

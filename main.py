@@ -1,4 +1,12 @@
+import sys
+
 import uvicorn
 
+from app.core.config import get_settings
+
 if __name__ == "__main__":
-    uvicorn.run("app.main:app", host="127.0.0.1", port=8080, reload=True)
+    cfg = get_settings()
+    problem = cfg.bind_error()
+    if problem:
+        sys.exit("CampusCaption: " + problem)
+    uvicorn.run("app.main:app", host=cfg.host, port=cfg.port, reload=True)

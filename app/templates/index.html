@@ -26,8 +26,31 @@
           <a id="overlay-link" class="primary" href="/overlay" target="_blank" rel="noopener">Open caption screen</a>
           <button id="copy-link" type="button" class="link-btn">Copy link</button>
         </div>
+        <!-- Students' phones: room code + QR; the first click creates the session if there is none yet -->
+        <button id="share-students" type="button" class="secondary students" aria-haspopup="dialog">Share with students</button>
       </div>
     </header>
+
+    <dialog id="share-dialog" class="share" aria-labelledby="share-h">
+      <h2 id="share-h">Students follow on their phones</h2>
+      <p class="hint">They scan the QR code, or open the address and type the room code. No app, no account.</p>
+      <div class="share-grid">
+        <img id="share-qr" alt="QR code that opens the captions on a phone" width="220" height="220" />
+        <div class="share-text">
+          <p class="share-label">Room code</p>
+          <p id="share-code" class="share-code"></p>
+          <p class="share-label">Address</p>
+          <p class="share-url"><a id="share-url" href="#" target="_blank" rel="noopener"></a></p>
+          <button id="share-copy" type="button" class="secondary">Copy link</button>
+        </div>
+      </div>
+      <p id="share-warn" class="notice error" hidden>
+        Phones can't reach this computer yet. Set <code>HOST=0.0.0.0</code> and <code>LECTURER_SECRET</code> in
+        <code>.env</code> and restart, or set <code>PUBLIC_URL</code> to the address students can open.
+      </p>
+      <p class="hint">Late arrivals can scroll back to the start. <b>Clear screen</b> and <b>End session</b> remove the text on the phones too.</p>
+      <form method="dialog" class="share-foot"><button type="submit" class="primary">Done</button></form>
+    </dialog>
 
     <p id="gate" class="notice info" role="status" hidden></p>
 

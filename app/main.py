@@ -2,8 +2,10 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+from urllib.parse import quote
+
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -24,6 +26,9 @@ async def lifespan(app: FastAPI):
         logging.getLogger("campuscaption").warning(
             "LECTURER_SECRET is not set: anyone who can reach this server can start, change and end captions. "
             "Set it in .env before exposing the server beyond this machine.")
+    base = settings.public_base_url()
+    if base:
+        logging.getLogger("campuscaption").info("Students join at %s/watch", base)
     app.state.captions = SessionManager(get_settings())
     app.state.captions.start()
     try:
@@ -63,5 +68,14 @@ def _page(name: str):
 for path, template in {
     "/": "index.html",
     "/overlay": "overlay.html",
+    "/watch": "watch.html",
 }.items():
     app.add_api_route(path, _page(template), methods=["GET"], response_class=HTMLResponse, include_in_schema=False)
+
+
+@app.get("/j/{code}", include_in_schema=False)
+def join_by_code(code: str, request: Request):
+    """What the QR code opens: the room code -> the students' caption view of that session."""
+    s = request.app.state.captions.by_code(code)
+    target = f"/watch?session={s.id}" if s else f"/watch?code={quote(code[:16])}"
+    return RedirectResponse(target, status_code=303)

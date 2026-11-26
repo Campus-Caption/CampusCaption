@@ -15,8 +15,18 @@
     <div id="box" class="cap-box"><div id="caps" class="cap-scroll" aria-live="polite"></div></div>
     <p id="hint" class="hint"></p>
   </main>
+  <!-- Room code + QR so students can follow on their phones (toggle: Join code button or the j key) -->
+  <aside id="join-card" class="join-card" aria-label="Follow the captions on your phone" hidden>
+    <img id="join-qr" alt="QR code to follow the captions on your phone" width="140" height="140" />
+    <div class="jc-text">
+      <p class="jc-h">Captions on your phone</p>
+      <p id="join-code" class="jc-code"></p>
+      <p id="join-url" class="jc-url"></p>
+    </div>
+  </aside>
   <nav id="bar" class="bar" aria-label="Caption settings">
     <button id="b-toggle" type="button" aria-pressed="true" title="Captions on/off">Captions: on</button>
+    <button id="b-join" type="button" aria-pressed="true" title="Show the room code for phones">Join code</button>
     <button id="b-minus" type="button" title="Smaller text">A−</button>
     <button id="b-plus" type="button" title="Larger text">A+</button>
     <button id="b-lines" type="button" title="Number of lines">3 lines</button>

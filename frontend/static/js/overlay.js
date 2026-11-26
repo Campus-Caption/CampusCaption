@@ -1,6 +1,7 @@
 // Caption screen for the projector / students' second screen.
 // ?session=ID  (required)  &size=40  &lines=3  &theme=dark|light|contrast
 // &controls=0 (hide the buttons)  &hide=8 (fade out after N s without speech, 0 = never)  &off=1 (start hidden)
+// &join=0|1 (room code + QR for students' phones in the corner; also the "Join code" button and the j key)
 const q = new URLSearchParams(location.search);
 const sid = q.get("session");
 const stage = document.getElementById("stage");
@@ -10,8 +11,10 @@ const renderer = new CaptionFeed.Renderer(capsEl);
 const THEMES = [["dark", "Dark"], ["light", "Light"], ["contrast", "Contrast"]];
 const LINES = [1, 2, 3, 4, 5];
 
-let prefs = { size: 40, lines: 3, theme: "dark", on: true };
+let prefs = { size: 40, lines: 3, theme: "dark", on: true, join: true };
 try { Object.assign(prefs, JSON.parse(localStorage.getItem("cc-overlay") || "{}")); } catch {}
+if (q.get("join") === "0" || q.get("join") === "1") prefs.join = q.get("join") === "1";
+let joinCode = "";
 if (q.get("size")) prefs.size = Math.max(16, Math.min(160, +q.get("size") || 40));
 if (q.get("lines")) prefs.lines = Math.max(1, Math.min(6, +q.get("lines") || 3));
 if (q.get("theme") && THEMES.some(([k]) => k === q.get("theme"))) prefs.theme = q.get("theme");
@@ -32,10 +35,20 @@ function apply() {
   t.setAttribute("aria-pressed", String(prefs.on));
   document.getElementById("b-lines").textContent = prefs.lines + (prefs.lines === 1 ? " line" : " lines");
   document.getElementById("b-theme").textContent = THEMES.find(([k]) => k === prefs.theme)[1];
+  document.getElementById("b-join").setAttribute("aria-pressed", String(prefs.join));
+  document.getElementById("join-card").hidden = !(prefs.join && joinCode);
   renderer.scroll();
+}
+function showJoinCode(code) {
+  if (!code || code === joinCode) return;
+  joinCode = code;
+  document.getElementById("join-code").textContent = code.length === 6 ? `${code.slice(0, 3)}-${code.slice(3)}` : code;
+  document.getElementById("join-qr").src = `/api/captions/session/${encodeURIComponent(sid)}/qr.svg`;
+  apply();
 }
 const $ = (id) => document.getElementById(id);
 $("b-toggle").onclick = () => { prefs.on = !prefs.on; save(); apply(); };
+$("b-join").onclick = () => { prefs.join = !prefs.join; save(); apply(); };
 $("b-minus").onclick = () => { prefs.size = Math.max(16, prefs.size - 4); save(); apply(); };
 $("b-plus").onclick = () => { prefs.size = Math.min(160, prefs.size + 4); save(); apply(); };
 $("b-lines").onclick = () => { prefs.lines = LINES[(LINES.indexOf(prefs.lines) + 1) % LINES.length]; save(); apply(); };
@@ -62,6 +75,7 @@ document.addEventListener("keydown", (e) => {
   else if (e.key === "-") $("b-minus").click();
   else if (e.key === "f") $("b-full").click();
   else if (e.key === "c") $("b-toggle").click();
+  else if (e.key === "j") $("b-join").click();
 });
 
 // ---- auto-hide after a pause, empty state ----
@@ -84,7 +98,13 @@ if (!sid) {
       else if (ev.type === "status" && ev.state === "loading") hint.textContent = ev.message || "Loading model…";
       else if (ev.type === "ended") hint.textContent = "The session has ended.";
       if (ev.type === "snapshot" && ev.status?.state === "loading") hint.textContent = ev.status.message || "";
+      if (ev.type === "snapshot") showJoinCode(ev.code);
+      else if (ev.type === "ended") { joinCode = ""; apply(); }
     },
   });
+  // the short address students can type if they don't scan the QR code
+  fetch("/api/captions/engines").then((r) => (r.ok ? r.json() : null)).then((info) => {
+    if (info?.lan_ready && info.public_url) $("join-url").textContent = info.public_url.replace(/^https?:\/\//, "") + "/watch";
+  }).catch(() => {});
 }
 apply(); updateEmpty();

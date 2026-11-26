@@ -122,17 +122,40 @@ async function openCaptionScreen(e) {
     win.close();
   }
 }
-async function ensureSession() {
-  if (S.sessionId) return true;
+// Several buttons call this (Start, caption screen, Copy link, Share with students); a double click must not
+// create two sessions, so concurrent calls share one request.
+let creating = null;
+function ensureSession() {
+  if (S.sessionId) return Promise.resolve(true);
+  creating ??= createSession().finally(() => { creating = null; });
+  return creating;
+}
+async function createSession() {
   const res = await api("/api/captions/session", {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ settings: settings() }),
   });
   if (!res.ok) { notice(await errorMessage(res), "error"); return false; }
-  S.sessionId = (await res.json()).session_id;
+  const created = await res.json();
+  S.sessionId = created.session_id;
+  S.code = created.code; S.joinUrl = created.join_url;
+  showStudentsButton();
   $("overlay-link").href = overlayUrl();
   $("share").hidden = false;
   S.feed = CaptionFeed.connect(S.sessionId, { onEvent: onFeed });
   return true;
+}
+
+// ------------------------------------------------------------------ students' phones (room code + QR)
+function showStudentsButton() {
+  $("share-students").textContent = S.code ? `Students: ${S.code}` : "Share with students";
+}
+async function openShare() {
+  if (!(await ensureSession())) return;
+  $("share-code").textContent = S.code;
+  $("share-url").href = $("share-url").textContent = S.joinUrl;
+  $("share-qr").src = `/api/captions/session/${S.sessionId}/qr.svg`;
+  $("share-warn").hidden = !!S.info.lan_ready;
+  $("share-dialog").showModal();
 }
 
 function onFeed(ev) {
@@ -359,6 +382,7 @@ async function endSession() {
     // the session (and its transcript) is deleted on the server either way; the browser keeps the copy above
     await api(`/api/captions/session/${sid}`, { method: "DELETE" }).catch(() => {});
     S.feed?.close(); S.feed = null; S.sessionId = null;
+    S.code = S.joinUrl = null; showStudentsButton();
     renderer.reset(); $("share").hidden = true; $("stats").textContent = "";
     $("overlay-link").href = "/overlay";
   }
@@ -408,6 +432,8 @@ async function init() {
   $("clear").onclick = async () => { if (S.sessionId) await api(`/api/captions/session/${S.sessionId}/clear`, { method: "POST" }); else renderer.reset(); };
   $("overlay-link").addEventListener("click", openCaptionScreen);
   $("copy-link").onclick = async (e) => { if (await ensureSession()) copy(overlayUrl(), e.target); };
+  $("share-students").onclick = openShare;
+  $("share-copy").onclick = (e) => copy(S.joinUrl, e.target);
   $("export").onclick = exportTranscript;
   $("end").onclick = endSession;
   $("analyse").addEventListener("change", () => store.set({ analyse: $("analyse").checked }));
